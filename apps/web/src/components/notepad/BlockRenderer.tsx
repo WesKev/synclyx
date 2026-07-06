@@ -1,3 +1,4 @@
+import MarkdownText from '../shared/MarkdownText'
 import React, { useRef, useEffect, useState } from 'react'
 import { Block, ChecklistItem } from '../../store/notesStore'
 
@@ -32,19 +33,18 @@ export default function BlockRenderer(props: Props) {
 
 // ─── Text Block ───────────────────────────────────────────────────────────────
 function TextBlock({ block, onKeyDown, onChange }: Props) {
-  const ref = useRef<HTMLTextAreaElement>(null)
-  useEffect(() => {
-    if (ref.current) {
-      ref.current.style.height = 'auto'
-      ref.current.style.height = Math.max(ref.current.scrollHeight, 36) + 'px'
-    }
-  }, [block.content])
   return (
     <div className="block block-text-wrap">
-      <textarea ref={ref} className="block-text"
-        data-block-id={block.id}
-        value={block.content} onChange={onChange} onKeyDown={onKeyDown}
-        placeholder="Type or @ for blocks..." rows={1} />
+      <MarkdownText
+        value={block.content}
+        blockId={block.id}
+        onChange={(val) => {
+          const syntheticEvent = { target: { value: val } } as React.ChangeEvent<HTMLTextAreaElement>
+          onChange(syntheticEvent)
+        }}
+        onKeyDown={onKeyDown}
+        placeholder="Type or @ for blocks..."
+      />
     </div>
   )
 }
