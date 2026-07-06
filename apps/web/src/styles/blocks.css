@@ -339,3 +339,17 @@ td:hover .table-col-remove { opacity: 1; }
   transition: background var(--transition), color var(--transition);
 }
 .float-format-btn:hover { background: var(--accent-dim); color: var(--accent); }
+
+.md-render .md-note-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.875em;
+  cursor: pointer;
+  text-decoration: none;
+}
+.md-render .md-note-link:hover { background: var(--accent); color: #fff; }

@@ -43,6 +43,13 @@ export interface Note {
 
 export type SyncVerseNodeType = 'block' | 'note' | 'sticky' | 'shape' | 'group'
 
+export interface Notebook {
+  id: string
+  name: string
+  color: string
+  createdAt: number
+}
+
 export interface SyncVerseNode {
   id: string
   type: SyncVerseNodeType
@@ -100,6 +107,12 @@ interface NotesStore {
   addCustomTag: (tag: string) => void
   removeCustomTag: (tag: string) => void
   toggleSidebar: () => void
+  // Notebooks
+  notebooks: Notebook[]
+  addNotebook: (name: string) => void
+  updateNotebook: (id: string, updates: Partial<Notebook>) => void
+  deleteNotebook: (id: string) => void
+  assignNoteToNotebook: (noteId: string, notebookId: string | undefined) => void
   // SyncVerse
   canvases: SyncVerseCanvas[]
   activeCanvasId: string | null
@@ -123,6 +136,7 @@ export const useNotesStore = create<NotesStore>()(
       sidebarCollapsed: false,
       canvases: [],
       activeCanvasId: null,
+      notebooks: [],
 
       addNote: () => {
         const newNote: Note = {
@@ -214,6 +228,20 @@ export const useNotesStore = create<NotesStore>()(
 
       removeCustomTag: (tag) =>
         set(s => ({ customTags: s.customTags.filter(t => t !== tag) })),
+
+      addNotebook: (name) => {
+        const nb: Notebook = { id: generateId(), name, color: '#a833b9', createdAt: Date.now() }
+        set(s => ({ notebooks: [...s.notebooks, nb] }))
+      },
+      updateNotebook: (id, updates) =>
+        set(s => ({ notebooks: s.notebooks.map(nb => nb.id === id ? { ...nb, ...updates } : nb) })),
+      deleteNotebook: (id) =>
+        set(s => ({
+          notebooks: s.notebooks.filter(nb => nb.id !== id),
+          notes: s.notes.map(n => n.notebookId === id ? { ...n, notebookId: undefined } : n)
+        })),
+      assignNoteToNotebook: (noteId, notebookId) =>
+        set(s => ({ notes: s.notes.map(n => n.id === noteId ? { ...n, notebookId } : n) })),
 
       toggleSidebar: () =>
         set(s => ({ sidebarCollapsed: !s.sidebarCollapsed })),

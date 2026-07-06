@@ -13,6 +13,8 @@ export function renderMarkdown(text: string): string {
   html = html.replace(/~~([^~]+)~~/g, '<s>$1</s>')
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>')
+  // [[Note links]]
+  html = html.replace(/\[\[([^\]]+)\]\]/g, '<span class="md-note-link">📝 $1</span>')
   html = html.replace(/\n/g, '<br>')
   return html
 }

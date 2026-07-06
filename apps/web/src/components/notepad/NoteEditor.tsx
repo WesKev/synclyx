@@ -6,6 +6,7 @@ import TablePopup from './TablePopup'
 import ExportModal from './ExportModal'
 import FormatToolbar from './FormatToolbar'
 import TagInput from './TagInput'
+import NoteLinkMenu from './NoteLinkMenu'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
 
@@ -25,6 +26,9 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
   const [atMenuPos, setAtMenuPos] = useState({ x: 0, y: 0 })
   const [atQuery, setAtQuery] = useState('')
   const [activeBlockId, setActiveBlockId] = useState('')
+  const [showNoteLink, setShowNoteLink] = useState(false)
+  const [noteLinkPos, setNoteLinkPos] = useState({ x: 0, y: 0 })
+  const [noteLinkQuery, setNoteLinkQuery] = useState('')
   const [showTablePopup, setShowTablePopup] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [zenMode, setZenMode] = useState(false)
@@ -107,15 +111,34 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>, blockId: string) => {
     const value = e.target.value
-    const atIndex = value.lastIndexOf('@')
-    if (atIndex !== -1 && /^[a-zA-Z]*$/.test(value.slice(atIndex + 1))) {
+    const cursor = e.target.selectionStart
+
+    // @ detection — only trigger when @ appears right before cursor
+    const textBeforeCursor = value.slice(0, cursor)
+    const atIndex = textBeforeCursor.lastIndexOf('@')
+    const afterAt = textBeforeCursor.slice(atIndex + 1)
+
+    // [[ detection for note linking
+    const doubleBracketIndex = textBeforeCursor.lastIndexOf('[[')
+    const afterBracket = textBeforeCursor.slice(doubleBracketIndex + 2)
+
+    if (atIndex !== -1 && atIndex === cursor - 1 - afterAt.length && /^[a-zA-Z]*$/.test(afterAt) && !afterAt.includes(' ')) {
       const rect = e.target.getBoundingClientRect()
       setAtMenuPos({ x: rect.left + 16, y: rect.bottom })
       setShowAtMenu(true)
-      setAtQuery(value.slice(atIndex + 1))
+      setShowNoteLink(false)
+      setAtQuery(afterAt)
+      setActiveBlockId(blockId)
+    } else if (doubleBracketIndex !== -1 && !afterBracket.includes('[[') && !afterBracket.includes(' ') && afterBracket.length < 30) {
+      const rect = e.target.getBoundingClientRect()
+      setNoteLinkPos({ x: rect.left + 16, y: rect.bottom })
+      setShowNoteLink(true)
+      setShowAtMenu(false)
+      setNoteLinkQuery(afterBracket)
       setActiveBlockId(blockId)
     } else {
       setShowAtMenu(false)
+      setShowNoteLink(false)
     }
     updateBlockContent(blockId, value)
   }
@@ -283,6 +306,27 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
           onClose={() => setFormatToolbar(null)} />
       )}
       {showAtMenu && <AtCommandMenu query={atQuery} position={atMenuPos} onSelect={handleAtSelect} onClose={() => setShowAtMenu(false)} />}
+      {showNoteLink && (
+        <NoteLinkMenu
+          query={noteLinkQuery}
+          position={noteLinkPos}
+          onSelect={(noteId, noteTitle) => {
+            setShowNoteLink(false)
+            const block = note.blocks.find(b => b.id === activeBlockId)
+            if (block) {
+              const textBeforeCursor = block.content
+              const bracketIdx = textBeforeCursor.lastIndexOf('[[')
+              const cleaned = textBeforeCursor.slice(0, bracketIdx)
+              updateBlockContent(activeBlockId, cleaned + `[[${noteTitle}]]`)
+              // Add to linkedNotes
+              if (!note.linkedNotes.includes(noteId)) {
+                updateNote(note.id, { linkedNotes: [...note.linkedNotes, noteId] })
+              }
+            }
+          }}
+          onClose={() => setShowNoteLink(false)}
+        />
+      )}
       {showTablePopup && <TablePopup onConfirm={(r,c) => { setShowTablePopup(false); addBlock('table', activeBlockId, { rows: String(r), cols: String(c) }) }} onClose={() => setShowTablePopup(false)} />}
       {showExportModal && <ExportModal note={note} onClose={() => setShowExportModal(false)} />}
     </div>
