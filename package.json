@@ -1,0 +1,12 @@
+{
+  "name": "synclyx",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clipboard manager + rich notepad with cross-device sync",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "web": "npm run dev --workspace=apps/web",
+    "desktop": "npm run start --workspace=apps/desktop",
+    "mobile": "npm run start --workspace=apps/mobile"
+  }
+}

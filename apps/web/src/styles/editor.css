@@ -1,0 +1,177 @@
+.editor { display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; }
+
+.editor-empty { flex: 1; display: flex; align-items: center; justify-content: center; }
+.editor-empty-inner { text-align: center; color: var(--text-faint); }
+.editor-empty-icon { font-size: 3rem; display: block; margin-bottom: 1rem; opacity: 0.4; }
+.editor-empty p { font-size: 0.9375rem; margin-bottom: 0.375rem; }
+.editor-empty-hint { font-size: 0.75rem; color: var(--text-faint); }
+
+.editor-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.5rem 1.5rem; border-bottom: 1px solid var(--border); gap: 0.75rem; flex-wrap: wrap;
+  background: var(--bg-surface);
+}
+.editor-toolbar-left { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; flex: 1; }
+.editor-toolbar-right { display: flex; align-items: center; gap: 0.375rem; }
+.editor-tag {
+  font-size: 0.6875rem; padding: 0.1875rem 0.5rem; background: var(--accent-dim);
+  color: var(--accent); border-radius: 1rem; cursor: pointer; transition: background var(--transition);
+}
+.editor-tag:hover { background: #ff444420; color: #ff4444; }
+.editor-tag-input {
+  font-size: 0.75rem; background: none; border: none; color: var(--text-muted); width: 4rem; outline: none;
+}
+.editor-tag-input::placeholder { color: var(--text-faint); }
+
+.toolbar-btn {
+  font-size: 0.8125rem; padding: 0.3125rem 0.5rem; border-radius: var(--radius-sm);
+  color: var(--text-muted); transition: all var(--transition);
+}
+.toolbar-btn:hover { background: var(--bg-hover); color: var(--text); }
+.toolbar-btn.active { background: var(--accent-dim); color: var(--accent); }
+.export-btn { background: var(--bg-elevated); color: var(--text); font-weight: 500; font-size: 0.8125rem; }
+.export-btn:hover { background: var(--accent); color: #fff; }
+
+/* Font picker */
+.font-picker-wrap { position: relative; }
+.font-picker {
+  position: absolute; top: 100%; right: 0; margin-top: 0.375rem;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: 0 1rem 2rem rgba(0,0,0,0.3);
+  z-index: 300; min-width: 14rem; max-height: 18rem; overflow-y: auto;
+}
+.font-picker-header {
+  font-size: 0.625rem; font-weight: 700; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: 0.1em; padding: 0.5rem 0.875rem 0.25rem;
+}
+.font-option {
+  display: block; width: 100%; text-align: left; padding: 0.5rem 0.875rem;
+  font-size: 0.875rem; color: var(--text-muted); transition: background var(--transition);
+}
+.font-option:hover { background: var(--bg-hover); color: var(--text); }
+.font-option.active { background: var(--accent-dim); color: var(--accent); }
+
+.editor-title {
+  font-size: 1.875rem; font-weight: 700; padding: 1.25rem 1.5rem 0.5rem;
+  background: none; border: none; color: var(--text); width: 100%; outline: none;
+  letter-spacing: -0.02em; font-family: inherit;
+}
+.editor-title::placeholder { color: var(--text-faint); }
+
+.editor-blocks {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.375rem 1.5rem 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.editor-blocks > * {
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 0;
+}
+
+/* Zen Mode */
+.editor.zen-mode { background: var(--bg); }
+.editor.zen-mode .editor-toolbar { display: none; }
+.editor.zen-mode .editor-title { padding-top: 3rem; max-width: 46rem; margin: 0 auto; width: 100%; }
+.editor.zen-mode .editor-blocks { max-width: 46rem; margin: 0 auto; width: 100%; }
+.zen-exit {
+  position: fixed; top: 1rem; right: 1rem; font-size: 0.75rem;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-muted); padding: 0.375rem 0.75rem; border-radius: var(--radius-md);
+  z-index: 100; transition: all var(--transition);
+}
+.zen-exit:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Export popup */
+.export-popup { min-width: 22rem; }
+.export-list { padding: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.export-option {
+  display: flex; align-items: center; gap: 0.875rem; padding: 0.75rem 1rem;
+  border-radius: var(--radius-md); text-align: left; transition: background var(--transition); width: 100%;
+}
+.export-option:hover { background: var(--bg-hover); }
+.export-option.share-option { border-top: 1px solid var(--border); margin-top: 0.25rem; }
+.export-icon {
+  width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center;
+  background: var(--accent-dim); color: var(--accent); border-radius: var(--radius-sm);
+  font-size: 0.875rem; font-weight: 700; font-family: var(--font-mono); flex-shrink: 0;
+}
+.export-text { flex: 1; }
+.export-label { font-size: 0.875rem; font-weight: 500; color: var(--text); display: block; }
+.export-desc { font-size: 0.6875rem; color: var(--text-faint); display: block; }
+.export-arrow { color: var(--text-faint); font-size: 0.875rem; }
+.copied-badge { color: var(--accent); font-size: 0.6875rem; }
+
+/* Version history */
+.versions-list { padding: 0.5rem 1rem; max-height: 20rem; overflow-y: auto; }
+.versions-empty { text-align: center; color: var(--text-faint); font-size: 0.875rem; padding: 2rem 0; }
+.version-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.625rem 0; border-bottom: 1px solid var(--border); gap: 1rem;
+}
+.version-info { flex: 1; }
+.version-title { font-size: 0.875rem; font-weight: 500; color: var(--text); display: block; }
+.version-date { font-size: 0.6875rem; color: var(--text-faint); }
+.version-download {
+  font-size: 0.75rem; padding: 0.3rem 0.75rem; background: var(--accent-dim);
+  color: var(--accent); border-radius: var(--radius-sm); white-space: nowrap;
+  transition: background var(--transition);
+}
+.version-download:hover { background: var(--accent); color: #fff; }
+
+/* ── Toolbar ── */
+.toolbar-divider { width: 1px; height: 1.25rem; background: var(--border); margin: 0 0.25rem; }
+
+/* ── Tag Input ── */
+.tag-input-wrap { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; flex: 1; }
+.tag-field-wrap { position: relative; }
+.tag-suggestions {
+  position: absolute; top: 100%; left: 0; margin-top: 0.25rem;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.3);
+  z-index: 400; min-width: 10rem; overflow: hidden;
+}
+.tag-suggestion-item {
+  display: block; width: 100%; text-align: left; padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem; color: var(--text-muted); transition: background var(--transition);
+}
+.tag-suggestion-item:hover { background: var(--bg-hover); color: var(--text); }
+.tag-suggestion-new { color: var(--accent) !important; border-top: 1px solid var(--border); }
+
+/* ── @ Menu 2-col ── */
+.at-menu-2col { min-width: 22rem; }
+.at-menu-grid { display: flex; gap: 0; }
+.at-menu-col { flex: 1; border-right: 1px solid var(--border); }
+.at-menu-col:last-child { border-right: none; }
+
+/* ── Checklist name ── */
+.checklist-icon { font-size: 0.875rem; color: var(--accent); flex-shrink: 0; }
+.checklist-name-input {
+  flex: 1; background: none; border: none; color: var(--text); font-size: 0.8125rem;
+  font-weight: 600; outline: none; font-family: inherit;
+}
+.checklist-name-input::placeholder { color: var(--text-faint); font-weight: 400; }
+
+/* ── FAB expanded ── */
+.fab-wrap { position: fixed; bottom: 2rem; right: 2rem; z-index: 100; display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem; }
+.fab-options { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end; }
+.fab-option {
+  display: flex; align-items: center; gap: 0.625rem;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: 2rem; padding: 0.5rem 1rem 0.5rem 0.625rem;
+  box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.3); transition: all var(--transition);
+  white-space: nowrap;
+}
+.fab-option:hover { border-color: var(--accent); background: var(--accent-dim); }
+.fab-option-syncverse:hover { border-color: #7c6aff; background: #7c6aff15; }
+.fab-option-icon { font-size: 1rem; }
+.fab-option-label { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+.fab-backdrop { position: fixed; inset: 0; z-index: -1; }
+.fab.fab-open { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text); }

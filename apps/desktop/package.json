@@ -1,0 +1,14 @@
+{
+  "name": "@synclyx/desktop",
+  "version": "0.1.0",
+  "description": "Electron app — watches system clipboard and syncs to Firebase",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "electron": "^27.0.0",
+    "firebase": "^10.0.0"
+  }
+}

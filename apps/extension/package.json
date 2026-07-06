@@ -1,0 +1,5 @@
+{
+  "name": "@synclyx/extension",
+  "version": "0.1.0",
+  "description": "Chrome/Firefox Manifest V3 browser extension"
+}

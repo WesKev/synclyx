@@ -1,0 +1,17 @@
+.app-shell { display: flex; height: 100vh; width: 100vw; overflow: hidden; position: relative; padding-left: 2.75rem; }
+.app-main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+.fab {
+  position: fixed; bottom: 2rem; right: 2rem; width: 3.25rem; height: 3.25rem;
+  border-radius: 50%; background: var(--accent); color: #fff; font-size: 1.75rem;
+  line-height: 1; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0.5rem 1.5rem var(--accent-dim), 0 0.25rem 0.5rem rgba(0,0,0,0.3);
+  transition: background var(--transition), transform var(--transition), box-shadow var(--transition); z-index: 100;
+}
+.fab:hover { background: var(--accent-hover); transform: scale(1.08); }
+.fab:active { transform: scale(0.95); }
+
+@media (max-width: 48rem) {
+  .sidebar { display: none; }
+  .app-main { width: 100%; }
+}
