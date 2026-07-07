@@ -134,11 +134,11 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     const atIndex = textBeforeCursor.lastIndexOf('@')
     const afterAt = atIndex !== -1 ? textBeforeCursor.slice(atIndex + 1) : ''
     // Only show @ menu when @ was just typed (atIndex is near cursor) and query is letters only
-    const atIsActive = atIndex !== -1 && 
-      !afterAt.includes(' ') && 
-      !afterAt.includes('\n') && 
+    const atIsActive = atIndex !== -1 &&
+      /^[a-zA-Z]*$/.test(afterAt) &&
       afterAt.length < 20 &&
-      /^[a-zA-Z]*$/.test(afterAt)
+      !afterAt.includes(' ') &&
+      !afterAt.includes('\n')
 
     // [[ detection — only after full [[ sequence
     const doubleBracketIndex = textBeforeCursor.lastIndexOf('[[')
@@ -168,8 +168,20 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, blockId: string) => {
     const value = (e.target as HTMLTextAreaElement).value
+    const target = e.target as HTMLTextAreaElement
+
+    // Detect @ key press immediately — show menu before onChange fires
+    if (e.key === '@') {
+      const rect = target.getBoundingClientRect()
+      setAtMenuPos({ x: rect.left + 16, y: rect.bottom })
+      setShowAtMenu(true)
+      setAtQuery('')
+      setActiveBlockId(blockId)
+    }
+
+    // Close @ menu on space or escape
     if (showAtMenu) {
-      if (e.key === 'Escape') { setShowAtMenu(false); return }
+      if (e.key === 'Escape' || e.key === ' ') { setShowAtMenu(false) }
       if (e.key === 'Enter') { e.preventDefault(); return }
     }
     if (e.key === 'Enter' && !e.shiftKey && !showAtMenu) {
@@ -224,8 +236,9 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     } else {
       blocks.push(newBlock)
     }
-    // Add a text block after rich blocks automatically (not after text/heading since they handle Enter themselves)
-    if (!['text', 'heading'].includes(type)) {
+    // Always add a text block after any block inserted via @ command
+    // This gives a natural writing flow — block appears, then empty text area below it
+    if (type !== 'heading') {
       const follower: Block = { id: generateId(), type: 'text', content: '', createdAt: Date.now() }
       const insertIdx = blocks.findIndex(b => b.id === newBlock.id)
       blocks.splice(insertIdx + 1, 0, follower)

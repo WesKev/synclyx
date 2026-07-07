@@ -143,7 +143,11 @@ export default function FloatingFormat() {
     if (!activeEl) return
     applyFormat(marker, activeEl)
     setToolbar(null)
-    setTimeout(updateDot, 50)
+    // Blur so MarkdownText switches to rendered view
+    setTimeout(() => {
+      activeEl.blur()
+      setTimeout(updateDot, 100)
+    }, 30)
   }
 
   const handleDotClick = () => {

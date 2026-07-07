@@ -34,7 +34,7 @@ export default function BlockRenderer(props: Props) {
 }
 
 // ─── Text Block ───────────────────────────────────────────────────────────────
-function TextBlock({ block, onKeyDown, onChange }: Props) {
+function TextBlock({ block, onKeyDown, onChange, onAddBlockAfter }: Props) {
   return (
     <div className="block block-text-wrap">
       <MarkdownText
