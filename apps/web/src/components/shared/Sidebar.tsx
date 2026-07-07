@@ -78,6 +78,7 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
   }
 
   return (
+    <>
     <aside className="sidebar">
       {/* Header */}
       <div className="sidebar-header">
@@ -288,5 +289,6 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
       </div>
     </aside>
     {showTrash && <TrashView onClose={() => setShowTrash(false)} />}
+  </>
   )
 }
