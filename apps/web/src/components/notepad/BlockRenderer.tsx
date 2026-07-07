@@ -1,4 +1,6 @@
 import MarkdownText from '../shared/MarkdownText'
+import CodeBlockCM from './CodeBlock'
+import TableBlockPro from './TableBlock'
 import React, { useRef, useEffect, useState } from 'react'
 import { Block, ChecklistItem } from '../../store/notesStore'
 
@@ -323,76 +325,18 @@ function LinkBlock({ block, onRemove, onUpdateMeta }: Props) {
 }
 
 // ─── Table Block ──────────────────────────────────────────────────────────────
-function TableBlock({ block, onRemove }: Props) {
-  const [data, setData] = useState<string[][]>(
-    Array.from({ length: parseInt(block.meta?.rows || '3') },
-      () => Array.from({ length: parseInt(block.meta?.cols || '3') }, () => ''))
-  )
-  const [hoverRow, setHoverRow] = useState<number | null>(null)
-  const [hoverCol, setHoverCol] = useState<number | null>(null)
-
-  const update = (r: number, c: number, val: string) =>
-    setData(d => d.map((row, ri) => row.map((cell, ci) => ri === r && ci === c ? val : cell)))
-  const insertRow = (afterIdx: number) =>
-    setData(d => [...d.slice(0, afterIdx + 1), Array(d[0].length).fill(''), ...d.slice(afterIdx + 1)])
-  const removeRow = (idx: number) =>
-    setData(d => d.length > 1 ? d.filter((_, i) => i !== idx) : d)
-  const insertCol = (afterIdx: number) =>
-    setData(d => d.map(r => [...r.slice(0, afterIdx + 1), '', ...r.slice(afterIdx + 1)]))
-  const removeCol = (idx: number) =>
-    setData(d => d.map(r => r.length > 1 ? r.filter((_, i) => i !== idx) : r))
-
+function TableBlock({ block, onRemove, onUpdateMeta }: Props) {
+  const rows = parseInt(block.meta?.rows || '3')
+  const cols = parseInt(block.meta?.cols || '3')
+  const initialData = block.meta?.tableData ? JSON.parse(block.meta.tableData) : undefined
   return (
-    <div className="block block-table">
-      <div className="table-toolbar">
-        <span className="table-label">⊞ Table — {data.length} × {data[0]?.length || 0}</span>
-        <button className="block-remove-inline" onClick={onRemove}>✕</button>
-      </div>
-      <div className="table-scroll">
-        {/* Column add buttons above */}
-        <div className="table-col-add-row">
-          <div className="table-corner" />
-          {data[0]?.map((_, ci) => (
-            <div key={ci} className="table-col-add-cell">
-              <button className="table-add-btn" onClick={() => insertCol(ci - 1)} title="Add column before">+</button>
-              {ci === data[0].length - 1 && (
-                <button className="table-add-btn table-add-after" onClick={() => insertCol(ci)} title="Add column after">+</button>
-              )}
-            </div>
-          ))}
-        </div>
-        <table className="block-table-el">
-          <tbody>
-            {data.map((row, ri) => (
-              <tr key={ri} onMouseEnter={() => setHoverRow(ri)} onMouseLeave={() => setHoverRow(null)}>
-                {/* Row add button */}
-                <td className="table-row-add-cell">
-                  {hoverRow === ri && (
-                    <div className="table-row-btns">
-                      <button className="table-add-btn" onClick={() => insertRow(ri - 1)} title="Add row before">+</button>
-                      <button className="table-add-btn" onClick={() => insertRow(ri)} title="Add row after">+</button>
-                      <button className="table-remove-btn" onClick={() => removeRow(ri)} title="Remove row">−</button>
-                    </div>
-                  )}
-                </td>
-                {row.map((cell, ci) => (
-                  <td key={ci} className={ri === 0 ? 'table-header-cell' : ''}>
-                    <input className="table-cell-input" value={cell}
-                      onChange={e => update(ri, ci, e.target.value)}
-                      placeholder={ri === 0 ? `Col ${ci + 1}` : ''}
-                      onMouseEnter={() => setHoverCol(ci)}
-                    />
-                    {hoverRow === ri && hoverCol === ci && (
-                      <button className="table-col-remove" onClick={() => removeCol(ci)} title="Remove column">−</button>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <TableBlockPro
+      rows={rows}
+      cols={cols}
+      initialData={initialData}
+      onChange={(data) => onUpdateMeta({ ...block.meta, tableData: JSON.stringify(data) })}
+      onRemove={onRemove}
+    />
   )
 }
 

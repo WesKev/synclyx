@@ -14,6 +14,7 @@ import './styles/editor.css'
 import './styles/blocks.css'
 import './styles/popups.css'
 import './styles/syncverse.css'
+import './styles/codemirror.css'
 
 export type AppView = 'notes' | 'syncverse'
 
