@@ -175,3 +175,35 @@
 .fab-option-label { font-size: 0.875rem; font-weight: 600; color: var(--text); }
 .fab-backdrop { position: fixed; inset: 0; z-index: -1; }
 .fab.fab-open { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text); }
+
+/* ── Search highlight inside note ── */
+.search-highlight-inline {
+  background: #fef08a;
+  color: #1a1a2e;
+  border-radius: 0.125rem;
+  padding: 0 0.125rem;
+}
+[data-theme="dark"] .search-highlight-inline {
+  background: #a833b940;
+  color: var(--accent);
+}
+
+/* ── Notebook Picker ── */
+.notebook-picker { min-width: 13rem; }
+.notebook-picker-empty {
+  padding: 0.75rem 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--text-faint);
+  text-align: center;
+}
+.notebook-picker-item {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+}
+.nb-check { margin-left: auto; color: var(--accent); font-weight: 700; }
+.notebook-picker-remove {
+  color: #ff4444 !important;
+  border-top: 1px solid var(--border);
+  margin-top: 0.25rem;
+}

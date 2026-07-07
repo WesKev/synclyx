@@ -1,3 +1,4 @@
+import TrashView from './TrashView'
 import React, { useState } from 'react'
 import { useNotesStore, PRESET_TAGS } from '../../store/notesStore'
 import { useThemeStore } from '../../store/themeStore'
@@ -26,12 +27,13 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
   const [newNotebookName, setNewNotebookName] = useState('')
   const [editingNotebook, setEditingNotebook] = useState<string | null>(null)
   const [editNotebookVal, setEditNotebookVal] = useState('')
+  const [showTrash, setShowTrash] = useState(false)
   const [selectedNotebook, setSelectedNotebook] = useState<string | null>(null)
 
   const {
     notes, activeNoteId, setActiveNote, togglePin, deleteNote,
     customTags, addCustomTag, removeCustomTag, sidebarCollapsed, toggleSidebar,
-    notebooks, addNotebook, updateNotebook, deleteNotebook, assignNoteToNotebook
+    notebooks, addNotebook, updateNotebook, deleteNotebook, assignNoteToNotebook, setSearchQuery, lockedItems, trash
   } = useNotesStore()
   const { theme, toggle } = useThemeStore()
 
@@ -81,6 +83,9 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
       <div className="sidebar-header">
         <span className="sidebar-logo">Synclyx</span>
         <div className="sidebar-header-actions">
+          <button className="theme-toggle" onClick={() => setShowTrash(true)} title="Trash">
+            🗑{trash.length > 0 && <span className="trash-badge">{trash.length}</span>}
+          </button>
           <button className="theme-toggle" onClick={toggle}>{theme === 'dark' ? '☀️' : '🌙'}</button>
           <button className="sidebar-toggle-btn" onClick={toggleSidebar} title="Collapse">◀</button>
         </div>
@@ -90,8 +95,8 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
       <div className="sidebar-search-wrap">
         <span className="search-icon">⌕</span>
         <input className="sidebar-search" placeholder="Search notes..."
-          value={search} onChange={e => setSearch(e.target.value)} />
-        {search && <button className="search-clear" onClick={() => setSearch('')}>✕</button>}
+          value={search} onChange={e => { setSearch(e.target.value); setSearchQuery(e.target.value) }} />
+        {search && <button className="search-clear" onClick={() => { setSearch(''); setSearchQuery('') }}>✕</button>}
       </div>
 
       {/* Tabs */}
@@ -206,6 +211,7 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
             <div className="note-item-top">
               <span className="note-item-title">
                 {note.pinned && <span className="pin-indicator">📌 </span>}
+                {lockedItems[note.id] && <span className="pin-indicator">🔒 </span>}
                 {highlight(note.title || 'Untitled', search)}
               </span>
               <div className="note-item-actions">
@@ -281,5 +287,6 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
         )}
       </div>
     </aside>
+    {showTrash && <TrashView onClose={() => setShowTrash(false)} />}
   )
 }

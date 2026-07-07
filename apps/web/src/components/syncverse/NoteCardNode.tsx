@@ -26,7 +26,14 @@ export default function NoteCardNode({ data, selected }: NodeProps) {
           {note?.tags.length ? <span>{note.tags.slice(0,2).map(t => `#${t}`).join(' ')}</span> : null}
         </div>
       </div>
-      <button className="sv-note-card-open" onClick={() => note && setActiveNote(note.id)}>
+      <button className="sv-note-card-open" onClick={(e) => {
+        e.stopPropagation()
+        if (note) {
+          setActiveNote(note.id)
+          // Switch to notes view via custom event
+          window.dispatchEvent(new CustomEvent('synclyx:switch-view', { detail: 'notes' }))
+        }
+      }}>
         Open note →
       </button>
     </div>

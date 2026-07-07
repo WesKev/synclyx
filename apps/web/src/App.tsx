@@ -26,6 +26,16 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
+  // Listen for SyncVerse → Notes switch
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as AppView
+      setView(detail)
+    }
+    window.addEventListener('synclyx:switch-view', handler)
+    return () => window.removeEventListener('synclyx:switch-view', handler)
+  }, [])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); addNote() }

@@ -139,3 +139,62 @@
   transition: background var(--transition);
 }
 .popup-confirm:hover { background: var(--accent-hover); }
+
+/* ── Trash ── */
+.trash-popup { min-width: 28rem; max-width: 95vw; }
+.trash-body { padding: 0.5rem; max-height: 22rem; overflow-y: auto; }
+.trash-empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0.5rem; padding: 3rem 1rem; color: var(--text-faint); text-align: center;
+}
+.trash-empty-icon { font-size: 2.5rem; opacity: 0.4; }
+.trash-empty p { font-size: 0.9375rem; color: var(--text-muted); }
+.trash-empty span { font-size: 0.8125rem; }
+.trash-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.trash-item {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.625rem 0.75rem; border-radius: var(--radius-md);
+  background: var(--bg-elevated); border: 1px solid var(--border);
+}
+.trash-item-icon { font-size: 1.25rem; flex-shrink: 0; }
+.trash-item-info { flex: 1; min-width: 0; }
+.trash-item-title {
+  font-size: 0.875rem; font-weight: 500; color: var(--text);
+  display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.trash-item-meta { font-size: 0.6875rem; color: var(--text-faint); }
+.trash-item-actions { display: flex; gap: 0.375rem; flex-shrink: 0; }
+.trash-restore-btn {
+  font-size: 0.75rem; padding: 0.3rem 0.625rem;
+  background: var(--accent-dim); color: var(--accent);
+  border-radius: var(--radius-sm); transition: background var(--transition);
+}
+.trash-restore-btn:hover { background: var(--accent); color: #fff; }
+.trash-delete-btn {
+  font-size: 0.75rem; padding: 0.3rem 0.5rem;
+  background: #ff444420; color: #ff4444;
+  border-radius: var(--radius-sm); transition: background var(--transition);
+}
+.trash-delete-btn:hover { background: #ff4444; color: #fff; }
+.trash-hint { font-size: 0.6875rem; color: var(--text-faint); }
+.trash-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1rem; height: 1rem; background: #ff4444; color: #fff;
+  border-radius: 50%; font-size: 0.5625rem; font-weight: 700;
+  margin-left: 0.125rem; vertical-align: top;
+}
+
+/* ── Password Lock ── */
+.lock-popup { min-width: 22rem; max-width: 90vw; }
+.lock-icon-big { font-size: 2.5rem; text-align: center; margin-bottom: 0.5rem; }
+.lock-note-title {
+  font-size: 0.9375rem; font-weight: 600; color: var(--text);
+  text-align: center; margin-bottom: 0.75rem;
+}
+.lock-subtitle { font-size: 0.8125rem; color: var(--text-muted); text-align: center; margin-bottom: 0.75rem; }
+.lock-error { font-size: 0.8125rem; color: #ff4444; margin-top: 0.375rem; }
+.lock-hint {
+  font-size: 0.75rem; color: var(--text-faint);
+  background: var(--bg-elevated); border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem; margin-top: 0.5rem; line-height: 1.5;
+}

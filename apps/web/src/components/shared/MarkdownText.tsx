@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { renderMarkdown, hasMarkdown } from '../../utils/markdown'
+import { useNotesStore } from '../../store/notesStore'
 
 interface Props {
   value: string
@@ -17,11 +18,19 @@ interface Props {
  * - Shows rendered markdown when not focused
  * - Shows raw markdown when focused for editing
  */
+function highlightSearch(html: string, query: string): string {
+  if (!query.trim()) return html
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return html.replace(new RegExp(`(${escaped})(?![^<]*>)`, 'gi'),
+    '<mark class="search-highlight-inline">$1</mark>')
+}
+
 export default function MarkdownText({
   value, onChange, onKeyDown, placeholder,
   className = '', blockId, rows = 1, autoFocus
 }: Props) {
   const [focused, setFocused] = useState(false)
+  const { searchQuery } = useNotesStore()
   const ref = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -37,7 +46,7 @@ export default function MarkdownText({
       <div
         className={`md-render ${className}`}
         onClick={() => { setFocused(true); setTimeout(() => ref.current?.focus(), 10) }}
-        dangerouslySetInnerHTML={{ __html: renderMarkdown(value) }}
+        dangerouslySetInnerHTML={{ __html: highlightSearch(renderMarkdown(value), searchQuery) }}
       />
     )
   }

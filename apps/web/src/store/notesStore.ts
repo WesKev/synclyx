@@ -50,6 +50,13 @@ export interface Notebook {
   createdAt: number
 }
 
+export interface TrashedItem {
+  id: string
+  type: 'note' | 'canvas'
+  data: Note | SyncVerseCanvas
+  deletedAt: number
+}
+
 export interface SyncVerseNode {
   id: string
   type: SyncVerseNodeType
@@ -106,6 +113,19 @@ interface NotesStore {
   saveVersion: (id: string) => void
   addCustomTag: (tag: string) => void
   removeCustomTag: (tag: string) => void
+  searchQuery: string
+  setSearchQuery: (q: string) => void
+  // Trash
+  trash: TrashedItem[]
+  moveToTrash: (id: string, type: 'note' | 'canvas') => void
+  restoreFromTrash: (id: string) => void
+  permanentlyDelete: (id: string) => void
+  emptyTrash: () => void
+  // Password Lock
+  lockedItems: Record<string, string> // id -> hashed password
+  lockItem: (id: string, password: string) => void
+  unlockItem: (id: string) => void
+  verifyLock: (id: string, password: string) => boolean
   toggleSidebar: () => void
   // Notebooks
   notebooks: Notebook[]
@@ -190,11 +210,18 @@ export const useNotesStore = create<NotesStore>()(
         }, 3000)
       },
 
-      deleteNote: (id) =>
+      deleteNote: (id) => {
+        // Auto-expire trash items older than 30 days
+        const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+        const note = get().notes.find(n => n.id === id)
+        if (!note) return
+        const trashed: TrashedItem = { id: generateId(), type: 'note', data: note, deletedAt: Date.now() }
         set(s => ({
           notes: s.notes.filter(n => n.id !== id),
           activeNoteId: s.activeNoteId === id ? null : s.activeNoteId,
-        })),
+          trash: [trashed, ...s.trash.filter(t => t.deletedAt > thirtyDaysAgo)],
+        }))
+      },
 
       setActiveNote: (id) => set({ activeNoteId: id }),
 
@@ -228,6 +255,64 @@ export const useNotesStore = create<NotesStore>()(
 
       removeCustomTag: (tag) =>
         set(s => ({ customTags: s.customTags.filter(t => t !== tag) })),
+
+      setSearchQuery: (q) => set({ searchQuery: q }),
+
+      moveToTrash: (id, type) => {
+        const state = get()
+        if (type === 'note') {
+          const note = state.notes.find(n => n.id === id)
+          if (!note) return
+          const trashed: TrashedItem = { id: generateId(), type: 'note', data: note, deletedAt: Date.now() }
+          set(s => ({
+            notes: s.notes.filter(n => n.id !== id),
+            activeNoteId: s.activeNoteId === id ? null : s.activeNoteId,
+            trash: [trashed, ...s.trash],
+          }))
+        } else {
+          const canvas = state.canvases.find(c => c.id === id)
+          if (!canvas) return
+          const trashed: TrashedItem = { id: generateId(), type: 'canvas', data: canvas, deletedAt: Date.now() }
+          set(s => ({
+            canvases: s.canvases.filter(c => c.id !== id),
+            activeCanvasId: s.activeCanvasId === id ? null : s.activeCanvasId,
+            trash: [trashed, ...s.trash],
+          }))
+        }
+      },
+
+      restoreFromTrash: (trashedId) => {
+        const item = get().trash.find(t => t.id === trashedId)
+        if (!item) return
+        if (item.type === 'note') {
+          set(s => ({ notes: [item.data as Note, ...s.notes], trash: s.trash.filter(t => t.id !== trashedId) }))
+        } else {
+          set(s => ({ canvases: [item.data as SyncVerseCanvas, ...s.canvases], trash: s.trash.filter(t => t.id !== trashedId) }))
+        }
+      },
+
+      permanentlyDelete: (trashedId) =>
+        set(s => ({ trash: s.trash.filter(t => t.id !== trashedId) })),
+
+      emptyTrash: () => set({ trash: [] }),
+
+      lockItem: (id, password) => {
+        // Simple hash — in production use bcrypt via Firebase
+        const hash = btoa(password + id + 'synclyx_salt')
+        set(s => ({ lockedItems: { ...s.lockedItems, [id]: hash } }))
+      },
+
+      unlockItem: (id) =>
+        set(s => {
+          const { [id]: _, ...rest } = s.lockedItems
+          return { lockedItems: rest }
+        }),
+
+      verifyLock: (id, password) => {
+        const stored = get().lockedItems[id]
+        if (!stored) return true
+        return stored === btoa(password + id + 'synclyx_salt')
+      },
 
       addNotebook: (name) => {
         const nb: Notebook = { id: generateId(), name, color: '#a833b9', createdAt: Date.now() }

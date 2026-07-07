@@ -7,6 +7,8 @@ import ExportModal from './ExportModal'
 import FormatToolbar from './FormatToolbar'
 import TagInput from './TagInput'
 import NoteLinkMenu from './NoteLinkMenu'
+import NotebookPicker from './NotebookPicker'
+import { LockSetup, UnlockPrompt } from '../shared/PasswordLock'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
 
@@ -19,7 +21,7 @@ const GOOGLE_FONTS = [
 interface HistoryEntry { blocks: Block[]; title: string }
 
 export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () => void }) {
-  const { notes, activeNoteId, updateNote, togglePin } = useNotesStore()
+  const { notes, activeNoteId, updateNote, togglePin, lockedItems, moveToTrash } = useNotesStore()
   const note = notes.find(n => n.id === activeNoteId)
 
   const [showAtMenu, setShowAtMenu] = useState(false)
@@ -33,6 +35,9 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
   const [showExportModal, setShowExportModal] = useState(false)
   const [zenMode, setZenMode] = useState(false)
   const [showFontPicker, setShowFontPicker] = useState(false)
+  const [showNotebookPicker, setShowNotebookPicker] = useState(false)
+  const [showLockSetup, setShowLockSetup] = useState(false)
+  const [unlocked, setUnlocked] = useState(false)
   const [formatToolbar, setFormatToolbar] = useState<{ x: number; y: number } | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [historyIdx, setHistoryIdx] = useState(-1)
@@ -94,6 +99,17 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     return () => window.removeEventListener('keydown', handler)
   }, [undo, redo])
 
+  const isLocked = !!lockedItems[note?.id || ''] && !unlocked
+
+  if (note && isLocked) return (
+    <UnlockPrompt
+      itemId={note.id}
+      itemTitle={note.title}
+      onSuccess={() => setUnlocked(true)}
+      onCancel={() => {}}
+    />
+  )
+
   if (!note) return (
     <div className="editor-empty">
       <div className="editor-empty-inner">
@@ -111,25 +127,29 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>, blockId: string) => {
     const value = e.target.value
-    const cursor = e.target.selectionStart
-
-    // @ detection — only trigger when @ appears right before cursor
+    const cursor = e.target.selectionStart ?? value.length
     const textBeforeCursor = value.slice(0, cursor)
+
+    // @ detection — show menu when @ is typed, close only on space or Escape
     const atIndex = textBeforeCursor.lastIndexOf('@')
-    const afterAt = textBeforeCursor.slice(atIndex + 1)
+    const afterAt = atIndex !== -1 ? textBeforeCursor.slice(atIndex + 1) : ''
+    const atIsActive = atIndex !== -1 && !afterAt.includes(' ') && !afterAt.includes('
+') && afterAt.length < 20
 
-    // [[ detection for note linking
+    // [[ detection — only after full [[ sequence
     const doubleBracketIndex = textBeforeCursor.lastIndexOf('[[')
-    const afterBracket = textBeforeCursor.slice(doubleBracketIndex + 2)
+    const afterBracket = doubleBracketIndex !== -1 ? textBeforeCursor.slice(doubleBracketIndex + 2) : ''
+    const bracketIsActive = doubleBracketIndex !== -1 && !afterBracket.includes('[[') && !afterBracket.includes(' ') && !afterBracket.includes('
+') && afterBracket.length < 30
 
-    if (atIndex !== -1 && atIndex === cursor - 1 - afterAt.length && /^[a-zA-Z]*$/.test(afterAt) && !afterAt.includes(' ')) {
+    if (atIsActive) {
       const rect = e.target.getBoundingClientRect()
       setAtMenuPos({ x: rect.left + 16, y: rect.bottom })
       setShowAtMenu(true)
       setShowNoteLink(false)
       setAtQuery(afterAt)
       setActiveBlockId(blockId)
-    } else if (doubleBracketIndex !== -1 && !afterBracket.includes('[[') && !afterBracket.includes(' ') && afterBracket.length < 30) {
+    } else if (bracketIsActive) {
       const rect = e.target.getBoundingClientRect()
       setNoteLinkPos({ x: rect.left + 16, y: rect.bottom })
       setShowNoteLink(true)
@@ -257,6 +277,26 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
           <div className="editor-toolbar-right">
             <button className={`toolbar-btn ${note.pinned ? 'active' : ''}`} onClick={() => togglePin(note.id)} title="Pin">📌</button>
             <div className="font-picker-wrap">
+              <button className="toolbar-btn" onClick={() => setShowNotebookPicker(p => !p)} title="Add to notebook">📁</button>
+              {showNotebookPicker && (
+                <NotebookPicker
+                  noteId={note.id}
+                  currentNotebookId={note.notebookId}
+                  onClose={() => setShowNotebookPicker(false)}
+                />
+              )}
+            </div>
+            <button
+              className={`toolbar-btn ${lockedItems[note.id] ? 'active' : ''}`}
+              onClick={() => setShowLockSetup(true)}
+              title={lockedItems[note.id] ? 'Locked — click to manage' : 'Lock note'}>
+              {lockedItems[note.id] ? '🔒' : '🔓'}
+            </button>
+            <button className="toolbar-btn" title="Move to trash"
+              onClick={() => { if (confirm('Move to trash?')) moveToTrash(note.id, 'note') }}>
+              🗑
+            </button>
+            <div className="font-picker-wrap">
               <button className="toolbar-btn" onClick={() => setShowFontPicker(f => !f)} title="Font">Aa</button>
               {showFontPicker && (
                 <div className="font-picker">
@@ -329,6 +369,9 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       )}
       {showTablePopup && <TablePopup onConfirm={(r,c) => { setShowTablePopup(false); addBlock('table', activeBlockId, { rows: String(r), cols: String(c) }) }} onClose={() => setShowTablePopup(false)} />}
       {showExportModal && <ExportModal note={note} onClose={() => setShowExportModal(false)} />}
+      {showLockSetup && (
+        <LockSetup itemId={note.id} itemTitle={note.title} onClose={() => setShowLockSetup(false)} />
+      )}
     </div>
   )
 }
