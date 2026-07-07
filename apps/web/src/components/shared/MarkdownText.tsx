@@ -13,16 +13,17 @@ interface Props {
   autoFocus?: boolean
 }
 
-/**
- * Smart textarea that:
- * - Shows rendered markdown when not focused
- * - Shows raw markdown when focused for editing
- */
 function highlightSearch(html: string, query: string): string {
-  if (!query.trim()) return html
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return html.replace(new RegExp(`(${escaped})(?![^<]*>)`, 'gi'),
-    '<mark class="search-highlight-inline">$1</mark>')
+  if (!query || !query.trim()) return html
+  try {
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return html.replace(
+      new RegExp(`(${escaped})(?![^<]*>)`, 'gi'),
+      '<mark class="search-highlight-inline">$1</mark>'
+    )
+  } catch {
+    return html
+  }
 }
 
 export default function MarkdownText({
@@ -30,23 +31,27 @@ export default function MarkdownText({
   className = '', blockId, rows = 1, autoFocus
 }: Props) {
   const [focused, setFocused] = useState(false)
-  const { searchQuery } = useNotesStore()
   const ref = useRef<HTMLTextAreaElement>(null)
+  const { searchQuery = '' } = useNotesStore()
 
   useEffect(() => {
-    if (ref.current && focused) {
+    if (ref.current) {
       ref.current.style.height = 'auto'
       ref.current.style.height = Math.max(ref.current.scrollHeight, 36) + 'px'
     }
-  }, [value, focused])
+  }, [value])
 
-  // Show rendered view when blurred and has markdown
-  if (!focused && hasMarkdown(value)) {
+  // Show rendered markdown when blurred and content has markdown syntax
+  if (!focused && value && hasMarkdown(value)) {
+    const rendered = highlightSearch(renderMarkdown(value), searchQuery)
     return (
       <div
         className={`md-render ${className}`}
-        onClick={() => { setFocused(true); setTimeout(() => ref.current?.focus(), 10) }}
-        dangerouslySetInnerHTML={{ __html: highlightSearch(renderMarkdown(value), searchQuery) }}
+        onClick={() => {
+          setFocused(true)
+          setTimeout(() => ref.current?.focus(), 10)
+        }}
+        dangerouslySetInnerHTML={{ __html: rendered }}
       />
     )
   }

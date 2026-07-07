@@ -133,7 +133,12 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     // @ detection — show menu when @ is typed, close only on space or Escape
     const atIndex = textBeforeCursor.lastIndexOf('@')
     const afterAt = atIndex !== -1 ? textBeforeCursor.slice(atIndex + 1) : ''
-    const atIsActive = atIndex !== -1 && !afterAt.includes(' ') && !afterAt.includes('\n') && afterAt.length < 20
+    // Only show @ menu when @ was just typed (atIndex is near cursor) and query is letters only
+    const atIsActive = atIndex !== -1 && 
+      !afterAt.includes(' ') && 
+      !afterAt.includes('\n') && 
+      afterAt.length < 20 &&
+      /^[a-zA-Z]*$/.test(afterAt)
 
     // [[ detection — only after full [[ sequence
     const doubleBracketIndex = textBeforeCursor.lastIndexOf('[[')
