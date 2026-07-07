@@ -33,7 +33,7 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
   const {
     notes, activeNoteId, setActiveNote, togglePin, deleteNote,
     customTags, addCustomTag, removeCustomTag, sidebarCollapsed, toggleSidebar,
-    notebooks, addNotebook, updateNotebook, deleteNotebook, assignNoteToNotebook, setSearchQuery, lockedItems, trash
+    notebooks = [], addNotebook, updateNotebook, deleteNotebook, assignNoteToNotebook, setSearchQuery, lockedItems = {}, trash = []
   } = useNotesStore()
   const { theme, toggle } = useThemeStore()
 

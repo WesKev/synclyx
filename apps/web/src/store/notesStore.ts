@@ -369,6 +369,23 @@ export const useNotesStore = create<NotesStore>()(
 
       setActiveCanvas: (id) => set({ activeCanvasId: id }),
     }),
-    { name: 'synclyx-notes' }
+    {
+      name: 'synclyx-notes',
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        // Ensure all new fields exist when loading old persisted data
+        return {
+          ...persistedState,
+          trash: persistedState.trash ?? [],
+          lockedItems: persistedState.lockedItems ?? {},
+          notebooks: persistedState.notebooks ?? [],
+          canvases: persistedState.canvases ?? [],
+          customTags: persistedState.customTags ?? [],
+          searchQuery: persistedState.searchQuery ?? '',
+          sidebarCollapsed: persistedState.sidebarCollapsed ?? false,
+          activeCanvasId: persistedState.activeCanvasId ?? null,
+        }
+      },
+    }
   )
 )

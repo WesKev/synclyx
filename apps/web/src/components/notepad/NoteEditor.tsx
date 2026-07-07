@@ -21,7 +21,7 @@ const GOOGLE_FONTS = [
 interface HistoryEntry { blocks: Block[]; title: string }
 
 export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () => void }) {
-  const { notes, activeNoteId, updateNote, togglePin, lockedItems, moveToTrash } = useNotesStore()
+  const { notes, activeNoteId, updateNote, togglePin, lockedItems = {}, moveToTrash } = useNotesStore()
   const note = notes.find(n => n.id === activeNoteId)
 
   const [showAtMenu, setShowAtMenu] = useState(false)
