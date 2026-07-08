@@ -99,16 +99,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     return () => window.removeEventListener('keydown', handler)
   }, [undo, redo])
 
-  const isLocked = !!lockedItems[note?.id || ''] && !unlocked
-
-  if (note && isLocked) return (
-    <UnlockPrompt
-      itemId={note.id}
-      itemTitle={note.title}
-      onSuccess={() => setUnlocked(true)}
-      onCancel={() => {}}
-    />
-  )
+  const isLocked = note && !!lockedItems[note.id] && !unlocked
 
   if (!note) return (
     <div className="editor-empty">
@@ -387,6 +378,16 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       {showExportModal && <ExportModal note={note} onClose={() => setShowExportModal(false)} />}
       {showLockSetup && (
         <LockSetup itemId={note.id} itemTitle={note.title} onClose={() => setShowLockSetup(false)} />
+      )}
+      {isLocked && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', backdropFilter: 'blur(4px)' }}>
+          <UnlockPrompt
+            itemId={note.id}
+            itemTitle={note.title}
+            onSuccess={() => setUnlocked(true)}
+            onCancel={() => setUnlocked(false)}
+          />
+        </div>
       )}
     </div>
   )

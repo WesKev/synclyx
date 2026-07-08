@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNotesStore, TrashedItem } from '../../store/notesStore'
 
 export default function TrashView({ onClose }: { onClose: () => void }) {
@@ -14,7 +15,7 @@ export default function TrashView({ onClose }: { onClose: () => void }) {
     return Math.max(0, days)
   }
 
-  return (
+  return createPortal(
     <div className="popup-overlay" onClick={onClose}>
       <div className="popup trash-popup" onClick={e => e.stopPropagation()}>
         <div className="popup-header">
@@ -83,6 +84,7 @@ export default function TrashView({ onClose }: { onClose: () => void }) {
           <span className="trash-hint">Items are automatically deleted after 30 days</span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
