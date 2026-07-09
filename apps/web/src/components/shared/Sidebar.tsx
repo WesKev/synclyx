@@ -70,10 +70,13 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
 
   if (sidebarCollapsed) {
     return (
-      <aside className="sidebar sidebar-collapsed">
-        <button className="sidebar-toggle-btn" onClick={toggleSidebar} title="Expand">▶</button>
-        <button className="theme-toggle-mini" onClick={toggle}>{theme === 'dark' ? '☀️' : '🌙'}</button>
-      </aside>
+      <>
+        <aside className="sidebar sidebar-collapsed">
+          <button className="sidebar-toggle-btn" onClick={toggleSidebar} title="Expand">▶</button>
+          <button className="theme-toggle-mini" onClick={toggle}>{theme === 'dark' ? '☀️' : '🌙'}</button>
+        </aside>
+        {showTrash && <TrashView onClose={() => setShowTrash(false)} />}
+      </>
     )
   }
 

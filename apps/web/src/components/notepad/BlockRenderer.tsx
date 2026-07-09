@@ -217,64 +217,16 @@ function ChecklistBlock({ block, onRemove, onUpdateItems, onAddBlockAfter }: Pro
 
 // ─── Code Block ───────────────────────────────────────────────────────────────
 function CodeBlock({ block, onRemove, onUpdateMeta }: Props) {
-  const [lang, setLang] = useState(block.meta?.lang || 'javascript')
-  const [code, setCode] = useState(block.meta?.content || '')
-  const [collapsed, setCollapsed] = useState(false)
-  const lineCount = code.split('\n').length
-  const languages = ['javascript','typescript','python','html','css','json','bash','sql','rust','go','java','cpp','c','php','ruby','swift','kotlin']
-
-  const handleChange = (val: string) => {
-    setCode(val)
-    onUpdateMeta({ ...block.meta, lang, content: val })
-  }
-
-  const lines = code.split('\n')
-
   return (
-    <div className="block block-code">
-      <div className="code-header">
-        <div className="code-header-left">
-          <span className="code-dot red" /><span className="code-dot yellow" /><span className="code-dot green" />
-          <select className="code-lang-select" value={lang}
-            onChange={e => { setLang(e.target.value); onUpdateMeta({ ...block.meta, lang: e.target.value, content: code }) }}>
-            {languages.map(l => <option key={l} value={l}>{l}</option>)}
-          </select>
-        </div>
-        <div className="code-header-right">
-          <button className="code-copy-btn" onClick={() => navigator.clipboard.writeText(code)} title="Copy">⎘ Copy</button>
-          <button className="code-collapse-btn" onClick={() => setCollapsed(c => !c)}>{collapsed ? '▶' : '▼'}</button>
-          <button className="block-remove-inline" onClick={onRemove}>✕</button>
-        </div>
-      </div>
-      {!collapsed && (
-        <div className="code-body">
-          <div className="code-line-numbers">
-            {lines.map((_, i) => <div key={i} className="code-line-num">{i + 1}</div>)}
-          </div>
-          <textarea className="code-editor" value={code}
-            onChange={e => handleChange(e.target.value)}
-            placeholder={`// ${lang}...`}
-            spellCheck={false}
-            onKeyDown={e => {
-              if (e.key === 'Tab') {
-                e.preventDefault()
-                const s = e.currentTarget.selectionStart
-                const end = e.currentTarget.selectionEnd
-                const newVal = code.slice(0, s) + '  ' + code.slice(end)
-                handleChange(newVal)
-                setTimeout(() => {
-                  e.currentTarget.selectionStart = s + 2
-                  e.currentTarget.selectionEnd = s + 2
-                }, 0)
-              }
-            }}
-          />
-        </div>
-      )}
-      {!collapsed && <div className="code-footer">{lineCount} line{lineCount !== 1 ? 's' : ''} · {lang}</div>}
-    </div>
+    <CodeBlockCM
+      code={block.meta?.content || block.content || ''}
+      language={block.meta?.lang || 'javascript'}
+      onChange={(code: string, lang: string) => onUpdateMeta({ ...block.meta, lang, content: code })}
+      onRemove={onRemove}
+    />
   )
 }
+
 
 // ─── Image Block ──────────────────────────────────────────────────────────────
 function ImageBlock({ block, onRemove }: Props) {
@@ -329,12 +281,18 @@ function TableBlock({ block, onRemove, onUpdateMeta }: Props) {
   const rows = parseInt(block.meta?.rows || '3')
   const cols = parseInt(block.meta?.cols || '3')
   const initialData = block.meta?.tableData ? JSON.parse(block.meta.tableData) : undefined
+  const initialMeta = block.meta?.tableMeta ? JSON.parse(block.meta.tableMeta) : undefined
   return (
     <TableBlockPro
       rows={rows}
       cols={cols}
       initialData={initialData}
-      onChange={(data) => onUpdateMeta({ ...block.meta, tableData: JSON.stringify(data) })}
+      initialMeta={initialMeta}
+      onChange={(data, tableMeta) => onUpdateMeta({
+        ...block.meta,
+        tableData: JSON.stringify(data),
+        tableMeta: JSON.stringify(tableMeta)
+      })}
       onRemove={onRemove}
     />
   )

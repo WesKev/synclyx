@@ -1,12 +1,17 @@
-import React from 'react'
+import React, { useState } from 'react'
+import { LockSetup, UnlockPrompt } from '../shared/PasswordLock'
 import { useNotesStore } from '../../store/notesStore'
 
 export default function SyncVerseSidebar() {
-  const { canvases, activeCanvasId, setActiveCanvas, deleteCanvas, notes } = useNotesStore()
+  const [lockingCanvas, setLockingCanvas] = React.useState<string | null>(null)
+  const [unlockingCanvas, setUnlockingCanvas] = React.useState<string | null>(null)
+  const [unlockedCanvases, setUnlockedCanvases] = React.useState<Set<string>>(new Set())
+  const { canvases, activeCanvasId, setActiveCanvas, deleteCanvas, notes, lockedItems = {}, moveToTrash } = useNotesStore()
 
   const formatDate = (ts: number) => new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
   return (
+    <>
     <aside className="sidebar">
       <div className="sidebar-header">
         <span className="sidebar-logo">🌐 SyncVerse</span>
@@ -21,12 +26,26 @@ export default function SyncVerseSidebar() {
         {canvases.map(canvas => (
           <div key={canvas.id}
             className={`note-item ${activeCanvasId === canvas.id ? 'active' : ''}`}
-            onClick={() => setActiveCanvas(canvas.id)}>
+            onClick={() => {
+              if (lockedItems[canvas.id] && !unlockedCanvases.has(canvas.id)) {
+                setUnlockingCanvas(canvas.id)
+              } else {
+                setActiveCanvas(canvas.id)
+              }
+            }}>
             <div className="note-item-top">
-              <span className="note-item-title">{canvas.name}</span>
+              <span className="note-item-title">
+                {lockedItems[canvas.id] && !unlockedCanvases.has(canvas.id) && '🔒 '}
+                {canvas.name}
+              </span>
               <div className="note-item-actions">
+                <button className="note-pin-btn"
+                  onClick={e => { e.stopPropagation(); setLockingCanvas(canvas.id) }}
+                  title={lockedItems[canvas.id] ? 'Manage lock' : 'Lock canvas'}>
+                  {lockedItems[canvas.id] ? '🔒' : '🔓'}
+                </button>
                 <button className="note-delete-btn"
-                  onClick={e => { e.stopPropagation(); if (confirm('Delete canvas?')) deleteCanvas(canvas.id) }}>
+                  onClick={e => { e.stopPropagation(); if (confirm('Move to trash?')) moveToTrash(canvas.id, 'canvas') }}>
                   🗑
                 </button>
               </div>
@@ -39,5 +58,25 @@ export default function SyncVerseSidebar() {
         ))}
       </div>
     </aside>
+    {lockingCanvas && (
+      <LockSetup
+        itemId={lockingCanvas}
+        itemTitle={canvases.find(c => c.id === lockingCanvas)?.name || 'Canvas'}
+        onClose={() => setLockingCanvas(null)}
+      />
+    )}
+    {unlockingCanvas && (
+      <UnlockPrompt
+        itemId={unlockingCanvas}
+        itemTitle={canvases.find(c => c.id === unlockingCanvas)?.name || 'Canvas'}
+        onSuccess={() => {
+          setUnlockedCanvases(s => new Set([...s, unlockingCanvas!]))
+          setActiveCanvas(unlockingCanvas)
+          setUnlockingCanvas(null)
+        }}
+        onCancel={() => setUnlockingCanvas(null)}
+      />
+    )}
+  </>
   )
 }

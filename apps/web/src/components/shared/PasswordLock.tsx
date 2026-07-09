@@ -2,6 +2,36 @@ import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNotesStore } from '../../store/notesStore'
 
+function PasswordInput({ value, onChange, placeholder, autoFocus, onKeyDown }: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  autoFocus?: boolean
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+}) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="password-input-wrap">
+      <input
+        className="link-field password-field"
+        type={show ? 'text' : 'password'}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        autoFocus={autoFocus}
+        onKeyDown={onKeyDown}
+      />
+      <button
+        className="password-toggle-btn"
+        type="button"
+        onClick={() => setShow(s => !s)}
+        title={show ? 'Hide password' : 'Show password'}>
+        {show ? '🙈' : '👁'}
+      </button>
+    </div>
+  )
+}
+
 interface LockProps {
   itemId: string
   itemTitle: string
@@ -16,7 +46,14 @@ export function LockSetup({ itemId, itemTitle, onClose }: LockProps) {
   const [currentPass, setCurrentPass] = useState('')
   const [error, setError] = useState('')
 
+  const lockedCount = Object.keys(lockedItems).length
+  const FREE_LOCK_LIMIT = 2
+
   const handleLock = () => {
+    if (!isLocked && lockedCount >= FREE_LOCK_LIMIT) {
+      setError(`Free tier allows ${FREE_LOCK_LIMIT} locks. Upgrade to Pro for more.`)
+      return
+    }
     if (!password.trim()) { setError('Password cannot be empty'); return }
     if (password !== confirm) { setError('Passwords do not match'); return }
     lockItem(itemId, password)
@@ -33,7 +70,7 @@ export function LockSetup({ itemId, itemTitle, onClose }: LockProps) {
     <div className="popup-overlay" onClick={onClose}>
       <div className="popup lock-popup" onClick={e => e.stopPropagation()}>
         <div className="popup-header">
-          <span>{isLocked ? '🔓 Remove Lock' : '🔒 Lock Note'}</span>
+          <span>{isLocked ? '🔓 Remove Lock' : '🔒 Lock'}</span>
           <button className="popup-close" onClick={onClose}>✕</button>
         </div>
         <div className="popup-body">
@@ -41,22 +78,26 @@ export function LockSetup({ itemId, itemTitle, onClose }: LockProps) {
           {!isLocked ? (
             <>
               <div className="popup-fields">
-                <input className="link-field" type="password" placeholder="Set password"
-                  value={password} onChange={e => { setPassword(e.target.value); setError('') }} autoFocus />
-                <input className="link-field" type="password" placeholder="Confirm password"
-                  value={confirm} onChange={e => { setConfirm(e.target.value); setError('') }}
+                <PasswordInput value={password} onChange={v => { setPassword(v); setError('') }}
+                  placeholder="Set password" autoFocus />
+                <PasswordInput value={confirm} onChange={v => { setConfirm(v); setError('') }}
+                  placeholder="Confirm password"
                   onKeyDown={e => { if (e.key === 'Enter') handleLock() }} />
               </div>
               {error && <p className="lock-error">{error}</p>}
-              <p className="lock-hint">🔒 You get 2 free locks. More locks require Pro.</p>
+              <p className="lock-hint">
+                🔒 {lockedCount}/{FREE_LOCK_LIMIT} free locks used.
+                {lockedCount >= FREE_LOCK_LIMIT ? ' Upgrade to Pro for unlimited locks.' : ''}
+              </p>
             </>
           ) : (
             <>
               <div className="popup-fields">
-                <input className="link-field" type="password"
+                <PasswordInput value={currentPass}
+                  onChange={v => { setCurrentPass(v); setError('') }}
                   placeholder="Enter current password to remove lock"
-                  value={currentPass} onChange={e => { setCurrentPass(e.target.value); setError('') }}
-                  onKeyDown={e => { if (e.key === 'Enter') handleUnlock() }} autoFocus />
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') handleUnlock() }} />
               </div>
               {error && <p className="lock-error">{error}</p>}
             </>
@@ -65,7 +106,7 @@ export function LockSetup({ itemId, itemTitle, onClose }: LockProps) {
         <div className="popup-footer">
           <button className="popup-cancel" onClick={onClose}>Cancel</button>
           <button className="popup-confirm" onClick={isLocked ? handleUnlock : handleLock}>
-            {isLocked ? 'Remove Lock' : 'Lock Note'}
+            {isLocked ? 'Remove Lock' : 'Lock'}
           </button>
         </div>
       </div>
@@ -85,14 +126,12 @@ export function UnlockPrompt({ itemId, itemTitle, onSuccess, onCancel }: UnlockP
   const { verifyLock } = useNotesStore()
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [attempts, setAttempts] = useState(0)
 
   const handleSubmit = () => {
     if (verifyLock(itemId, password)) {
       onSuccess()
     } else {
-      setAttempts(a => a + 1)
-      setError(`Incorrect password${attempts >= 2 ? ' — too many attempts' : ''}`)
+      setError('Incorrect password')
       setPassword('')
     }
   }
@@ -100,20 +139,21 @@ export function UnlockPrompt({ itemId, itemTitle, onSuccess, onCancel }: UnlockP
   return (
     <div className="popup" style={{ maxWidth: '22rem', width: '90%' }} onClick={e => e.stopPropagation()}>
       <div className="popup-header">
-        <span>🔒 Locked Note</span>
+        <span>🔒 Locked</span>
       </div>
       <div className="popup-body">
         <div className="lock-icon-big">🔒</div>
         <p className="lock-note-title">"{itemTitle}"</p>
-        <p className="lock-subtitle">Enter the password to open this note</p>
-        <input className="link-field" type="password" placeholder="Password"
-          value={password} autoFocus
-          onChange={e => { setPassword(e.target.value); setError('') }}
+        <p className="lock-subtitle">Enter the password to open</p>
+        <PasswordInput value={password}
+          onChange={v => { setPassword(v); setError('') }}
+          placeholder="Password" autoFocus
           onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
         />
         {error && <p className="lock-error">{error}</p>}
       </div>
       <div className="popup-footer">
+        <button className="popup-cancel" onClick={onCancel}>Cancel</button>
         <button className="popup-confirm" onClick={handleSubmit}>Unlock</button>
       </div>
     </div>
