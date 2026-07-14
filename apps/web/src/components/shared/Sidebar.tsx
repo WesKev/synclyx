@@ -31,7 +31,7 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
   const [selectedNotebook, setSelectedNotebook] = useState<string | null>(null)
 
   const {
-    notes, activeNoteId, setActiveNote, togglePin, deleteNote,
+    notes, activeNoteId, setActiveNote, togglePin, deleteNote, moveToTrash,
     customTags, addCustomTag, removeCustomTag, sidebarCollapsed, toggleSidebar,
     notebooks = [], addNotebook, updateNotebook, deleteNotebook, assignNoteToNotebook, setSearchQuery, lockedItems = {}, trash = []
   } = useNotesStore()
@@ -222,7 +222,7 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
                 <button className={`note-pin-btn ${note.pinned ? 'pinned' : ''}`}
                   onClick={e => { e.stopPropagation(); togglePin(note.id) }}>📌</button>
                 <button className="note-delete-btn"
-                  onClick={e => { e.stopPropagation(); if (confirm('Delete?')) deleteNote(note.id) }}>🗑</button>
+                  onClick={e => { e.stopPropagation(); if (confirm('Delete?')) moveToTrash(note.id, 'note') }}>🗑</button>
               </div>
             </div>
             <div className="note-item-meta">
