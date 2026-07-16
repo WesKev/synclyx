@@ -548,3 +548,193 @@
 }
 .password-toggle-btn:hover { color: var(--text); }
 
+/* ── Row popup — LEFT of table ── */
+.row-hover-popup {
+  position: absolute;
+  right: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.25rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  z-index: 50;
+  white-space: nowrap;
+}
+
+/* ── Col popup — below header ── */
+.col-hover-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.25rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  z-index: 50;
+  white-space: nowrap;
+}
+
+.popup-action {
+  display: flex; align-items: center; justify-content: center;
+  width: 1.75rem; height: 1.75rem; border-radius: var(--radius-sm);
+  font-size: 0.75rem; color: var(--text-muted);
+  background: none; border: none; cursor: pointer;
+  transition: all var(--transition);
+}
+.popup-action:hover { background: var(--bg-hover); color: var(--text); }
+.popup-action.active { background: var(--accent-dim); color: var(--accent); }
+.popup-action.delete-action:hover { background: #ff444420; color: #ff4444; }
+
+.sort-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 100;
+}
+.sort-dropdown button {
+  display: block; width: 100%; padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem; color: var(--text); text-align: left;
+  white-space: nowrap; background: none; border: none; cursor: pointer;
+}
+.sort-dropdown button:hover { background: var(--bg-hover); }
+
+.color-picker-popup {
+  position: absolute; top: calc(100% + 4px); left: 0;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 0.375rem;
+  display: flex; flex-wrap: wrap; gap: 0.25rem; width: 8rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 100;
+}
+.color-picker-right { left: auto; right: 0; }
+.color-dot {
+  width: 1.25rem; height: 1.25rem; border-radius: 50%;
+  cursor: pointer; transition: transform var(--transition);
+}
+.color-dot:hover { transform: scale(1.2); }
+
+.frozen-col { position: sticky; left: 0; z-index: 3; }
+.frozen-indicator { font-size: 0.5rem; margin-left: 0.25rem; }
+.frozen-indicator-small { font-size: 0.5rem; }
+
+.table-title-wrap { display: flex; align-items: center; gap: 0.5rem; }
+.table-name {
+  font-size: 0.875rem; font-weight: 600; color: var(--text);
+  cursor: pointer; display: flex; align-items: center; gap: 0.375rem;
+}
+.table-name:hover .table-name-edit { opacity: 1; }
+.table-name-edit { font-size: 0.625rem; color: var(--text-faint); opacity: 0; transition: opacity var(--transition); }
+.table-name-input {
+  font-size: 0.875rem; font-weight: 600; background: var(--bg-elevated);
+  border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  color: var(--text); padding: 0.125rem 0.5rem; outline: none;
+}
+.table-size-badge {
+  font-size: 0.625rem; color: var(--text-faint);
+  background: var(--bg-elevated); padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm); font-family: var(--font-mono);
+}
+
+.row-highlighted td { background: rgba(168,51,185,0.07) !important; }
+.col-highlighted { background: rgba(168,51,185,0.07) !important; }
+.table-cell-highlighted { background: rgba(168,51,185,0.05) !important; }
+
+/* Formula autocomplete */
+.formula-autocomplete {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  min-width: 22rem; max-height: 20rem; overflow-y: auto;
+}
+.formula-ac-header {
+  font-size: 0.5625rem; font-weight: 700; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 0.5rem 0.875rem 0.25rem; border-bottom: 1px solid var(--border);
+}
+.formula-ac-item {
+  padding: 0.5rem 0.875rem; cursor: pointer;
+  transition: background var(--transition); border-bottom: 1px solid var(--border);
+}
+.formula-ac-item:last-child { border-bottom: none; }
+.formula-ac-item:hover, .formula-ac-item.active { background: var(--accent-dim); }
+.formula-ac-top { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.25rem; }
+.formula-ac-name { font-size: 0.875rem; font-weight: 700; color: var(--accent); font-family: var(--font-mono); }
+.formula-ac-desc { font-size: 0.75rem; color: var(--text-muted); }
+.formula-ac-example {
+  font-size: 0.75rem; color: var(--text-faint); font-family: var(--font-mono);
+  background: var(--bg-elevated); padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm); display: inline-block;
+}
+
+/* Password show/hide */
+.password-input-wrap { position: relative; display: flex; align-items: center; }
+.password-field { padding-right: 2.5rem !important; }
+.password-toggle-btn {
+  position: absolute; right: 0.5rem; background: none; border: none;
+  cursor: pointer; font-size: 0.875rem; color: var(--text-faint);
+  padding: 0.125rem; transition: color var(--transition);
+}
+.password-toggle-btn:hover { color: var(--text); }
+
+/* ── SyncVerse node delete button ── */
+.sv-node-delete {
+  font-size: 0.625rem;
+  color: var(--text-faint);
+  padding: 0.125rem 0.3rem;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-left: 0.125rem;
+}
+.sv-node-delete:hover { background: #ff444430; color: #ff4444; }
+
+/* ── Edge label ── */
+.edge-label-wrap {
+  pointer-events: all;
+}
+.edge-label {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.edge-delete-btn-wrap { pointer-events: all; }
+.edge-delete-btn {
+  background: #ff444430;
+  color: #ff4444;
+  border: 1px solid #ff444460;
+  border-radius: 50%;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 0.5625rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+.edge-delete-btn:hover { background: #ff4444; color: #fff; }
+
+.syncverse-hint-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.6875rem;
+  color: var(--text-faint);
+}

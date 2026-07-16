@@ -1,16 +1,17 @@
 import React, { useState } from 'react'
-import { Handle, Position, NodeProps } from '@xyflow/react'
+import { Handle, Position, NodeProps, useReactFlow } from '@xyflow/react'
 import { Block, ChecklistItem } from '../../store/notesStore'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
 
-export default function BlockNode({ data, selected }: NodeProps) {
+export default function BlockNode({ id, data, selected }: NodeProps) {
   const block = data.block as Block
+  const [collapsed, setCollapsed] = useState(false)
   const [localContent, setLocalContent] = useState(block?.content || '')
   const [localItems, setLocalItems] = useState<ChecklistItem[]>(block?.items || [])
-  const [collapsed, setCollapsed] = useState(false)
   const [code, setCode] = useState(block?.meta?.content || '')
   const [lang, setLang] = useState(block?.meta?.lang || 'javascript')
+  const { deleteElements } = useReactFlow()
 
   const getIcon = () => {
     const icons: Record<string, string> = {
@@ -20,33 +21,37 @@ export default function BlockNode({ data, selected }: NodeProps) {
     return icons[block?.type] || '¶'
   }
 
+  const getPreview = () => {
+    if (!block) return ''
+    switch (block.type) {
+      case 'text': return block.content?.slice(0, 120) || 'Empty text block'
+      case 'heading': return block.meta?.text || block.content || 'Heading'
+      case 'code': return `// ${block.meta?.lang || 'code'}\n${(block.meta?.content || '').slice(0, 80)}`
+      case 'link': return block.meta?.label || block.meta?.url || 'Link'
+      case 'image': return block.meta?.name || 'Image'
+      case 'checklist': return `${block.items?.filter(i => i.checked).length || 0}/${block.items?.length || 0} done`
+      default: return block.type
+    }
+  }
+
   const renderBody = () => {
     if (!block) return null
     switch (block.type) {
       case 'text':
-        return (
-          <textarea className="sv-editable-text" value={localContent}
-            onChange={e => setLocalContent(e.target.value)}
-            placeholder="Type something..." rows={3} />
-        )
+        return <textarea className="sv-editable-text" value={localContent}
+          onChange={e => setLocalContent(e.target.value)} placeholder="Type something..." rows={3} />
       case 'heading':
-        return (
-          <input className="sv-editable-heading" value={localContent}
-            onChange={e => setLocalContent(e.target.value)}
-            placeholder="Heading..." />
-        )
+        return <input className="sv-editable-heading" value={localContent}
+          onChange={e => setLocalContent(e.target.value)} placeholder="Heading..." />
       case 'code':
         return (
           <div className="sv-code-wrap">
-            <select className="sv-code-lang" value={lang}
-              onChange={e => setLang(e.target.value)}>
+            <select className="sv-code-lang" value={lang} onChange={e => setLang(e.target.value)}>
               {['javascript','typescript','python','html','css','json','bash','sql'].map(l =>
-                <option key={l} value={l}>{l}</option>
-              )}
+                <option key={l} value={l}>{l}</option>)}
             </select>
             <textarea className="sv-editable-code" value={code}
-              onChange={e => setCode(e.target.value)}
-              placeholder={`// ${lang}...`} rows={4} spellCheck={false} />
+              onChange={e => setCode(e.target.value)} placeholder={`// ${lang}...`} rows={4} spellCheck={false} />
           </div>
         )
       case 'checklist':
@@ -55,25 +60,12 @@ export default function BlockNode({ data, selected }: NodeProps) {
             {localItems.map((item, idx) => (
               <div key={item.id} className="sv-check-item">
                 <button className={`sv-check-box ${item.checked ? 'checked' : ''}`}
-                  onClick={() => setLocalItems(items =>
-                    items.map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
-                  )}>
+                  onClick={() => setLocalItems(items => items.map(i => i.id === item.id ? { ...i, checked: !i.checked } : i))}>
                   {item.checked ? '✓' : ''}
                 </button>
-                <input className={`sv-check-text ${item.checked ? 'done' : ''}`}
-                  value={item.text}
-                  onChange={e => setLocalItems(items =>
-                    items.map(i => i.id === item.id ? { ...i, text: e.target.value } : i)
-                  )}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      const newItem = { id: generateId(), text: '', checked: false }
-                      setLocalItems(items => [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)])
-                    }
-                  }}
-                  placeholder="Checklist item..."
-                />
+                <input className={`sv-check-text ${item.checked ? 'done' : ''}`} value={item.text}
+                  onChange={e => setLocalItems(items => items.map(i => i.id === item.id ? { ...i, text: e.target.value } : i))}
+                  placeholder="Checklist item..." />
               </div>
             ))}
             <button className="sv-check-add"
@@ -92,26 +84,13 @@ export default function BlockNode({ data, selected }: NodeProps) {
               🔗 {block.meta.label || block.meta.url}
             </a>
           : <div className="sv-placeholder">🔗 Link block</div>
-      case 'list':
-        const listItems = block.meta?.items ? JSON.parse(block.meta.items) : ['']
-        return (
-          <div className="sv-list">
-            {listItems.map((item: string, i: number) => (
-              <div key={i} className="sv-list-item">
-                <span className="sv-list-marker">•</span>
-                <span>{item || 'List item'}</span>
-              </div>
-            ))}
-          </div>
-        )
       default:
-        return <div className="sv-placeholder">{block.type} block</div>
+        return <p className="sv-node-text">{getPreview()}</p>
     }
   }
 
   return (
-    <div className={`sv-node sv-block-node ${selected ? 'sv-node-selected' : ''} sv-type-${block?.type}`}
-      style={{ minWidth: '16rem', maxWidth: '24rem' }}>
+    <div className={`sv-node sv-block-node ${selected ? 'sv-node-selected' : ''} sv-type-${block?.type}`}>
       <Handle type="target" position={Position.Left} className="sv-handle" />
       <Handle type="source" position={Position.Right} className="sv-handle" />
       <Handle type="target" position={Position.Top} className="sv-handle sv-handle-top" />
@@ -123,6 +102,7 @@ export default function BlockNode({ data, selected }: NodeProps) {
         <button className="sv-node-collapse" onClick={() => setCollapsed(c => !c)}>
           {collapsed ? '▶' : '▼'}
         </button>
+        <button className="sv-node-delete" onClick={() => deleteElements({ nodes: [{ id }] })} title="Delete node">✕</button>
       </div>
 
       {!collapsed && <div className="sv-node-body">{renderBody()}</div>}
