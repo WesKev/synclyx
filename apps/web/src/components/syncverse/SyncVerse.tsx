@@ -3,8 +3,8 @@ import {
   ReactFlow, Background, Controls, MiniMap,
   addEdge, useNodesState, useEdgesState,
   type Connection, type Node, type Edge,
-  BackgroundVariant, Panel, EdgeLabelRenderer,
-  BaseEdge, getStraightPath, getBezierPath,
+  BackgroundVariant, Panel,
+  EdgeLabelRenderer, BaseEdge, getBezierPath,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useNotesStore, SyncVerseCanvas, Block, BlockType } from '../../store/notesStore'
@@ -14,33 +14,24 @@ import NoteCardNode from './NoteCardNode'
 import CanvasFAB from './CanvasFAB'
 
 const nodeTypes = { block: BlockNode, sticky: StickyNode, note: NoteCardNode }
-
 const generateId = () => Math.random().toString(36).slice(2, 10)
 
-// ── Custom Edge with label + delete ───────────────────────────────────────────
+// ── Custom Edge ───────────────────────────────────────────────────────────────
 function SyncluxEdge({ id, sourceX, sourceY, targetX, targetY, label, selected, markerEnd, style }: any) {
   const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY })
-  const { updateCanvas } = useNotesStore()
   return (
     <>
-      <BaseEdge path={edgePath} markerEnd={markerEnd} style={{ ...style, stroke: selected ? '#e040fb' : '#a833b9', strokeWidth: selected ? 3 : 2 }} />
+      <BaseEdge
+        path={edgePath}
+        markerEnd={markerEnd}
+        style={{ ...style, stroke: selected ? '#e040fb' : '#a833b9', strokeWidth: selected ? 3 : 2 }}
+      />
       {label && (
         <EdgeLabelRenderer>
-          <div style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, pointerEvents: 'all', zIndex: 10 }}
+          <div
+            style={{ position: 'absolute', transform: `translate(-50%,-50%) translate(${labelX}px,${labelY}px)`, pointerEvents: 'none', zIndex: 10 }}
             className="edge-label-wrap">
-            <span className="edge-label">{label}</span>
-          </div>
-        </EdgeLabelRenderer>
-      )}
-      {selected && (
-        <EdgeLabelRenderer>
-          <div style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${(sourceX+targetX)/2}px,${(sourceY+targetY)/2 - 20}px)`, pointerEvents: 'all', zIndex: 20 }}
-            className="edge-delete-btn-wrap">
-            <button className="edge-delete-btn" title="Delete connection"
-              onClick={() => {
-                // Will be handled via onEdgesChange
-                document.dispatchEvent(new CustomEvent('synclyx:delete-edge', { detail: id }))
-              }}>✕</button>
+            <span className="edge-label">{label as string}</span>
           </div>
         </EdgeLabelRenderer>
       )}
@@ -50,27 +41,42 @@ function SyncluxEdge({ id, sourceX, sourceY, targetX, targetY, label, selected, 
 
 const edgeTypes = { synclyx: SyncluxEdge }
 
-// ── Edge Label Popup ───────────────────────────────────────────────────────────
-function EdgeLabelPopup({ edge, onSave, onClose }: { edge: Edge; onSave: (id: string, label: string) => void; onClose: () => void }) {
+// ── Edge Label Popup ──────────────────────────────────────────────────────────
+function EdgeLabelPopup({ edge, onSave, onDelete, onClose }: {
+  edge: Edge
+  onSave: (id: string, label: string) => void
+  onDelete: (id: string) => void
+  onClose: () => void
+}) {
   const [label, setLabel] = useState((edge.label as string) || '')
   return (
     <div className="popup-overlay" onClick={onClose}>
-      <div className="popup" style={{ maxWidth: '20rem' }} onClick={e => e.stopPropagation()}>
+      <div className="popup" style={{ maxWidth: '22rem' }} onClick={e => e.stopPropagation()}>
         <div className="popup-header">
-          <span>🔗 Name this connection</span>
+          <span>🔗 Connection</span>
           <button className="popup-close" onClick={onClose}>✕</button>
         </div>
         <div className="popup-body">
-          <input className="link-field" autoFocus placeholder="e.g. depends on, leads to, relates to..."
-            value={label} onChange={e => setLabel(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { onSave(edge.id, label); onClose() } if (e.key === 'Escape') onClose() }}
+          <input
+            className="link-field" autoFocus
+            placeholder="Name this connection (e.g. depends on, leads to...)"
+            value={label}
+            onChange={e => setLabel(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { onSave(edge.id, label); onClose() }
+              if (e.key === 'Escape') onClose()
+            }}
           />
           <p style={{ fontSize: '0.75rem', color: 'var(--text-faint)', marginTop: '0.5rem' }}>
-            Leave empty to remove the label. Hover the line to see it.
+            Leave empty to remove label. Hover the line to see name.
           </p>
         </div>
         <div className="popup-footer">
-          <button className="popup-cancel" onClick={onClose}>Cancel</button>
+          <button className="popup-cancel"
+            style={{ color: '#ff4444' }}
+            onClick={() => { onDelete(edge.id); onClose() }}>
+            🗑 Delete line
+          </button>
           <button className="popup-confirm" onClick={() => { onSave(edge.id, label); onClose() }}>Save</button>
         </div>
       </div>
@@ -78,8 +84,7 @@ function EdgeLabelPopup({ edge, onSave, onClose }: { edge: Edge; onSave: (id: st
   )
 }
 
-interface Props { canvas: SyncVerseCanvas }
-
+// ── Canvas Header ─────────────────────────────────────────────────────────────
 function SyncVerseHeader({ canvas, onRename }: { canvas: SyncVerseCanvas; onRename: (name: string) => void }) {
   const [editing, setEditing] = React.useState(false)
   const [val, setVal] = React.useState(canvas.name)
@@ -89,57 +94,46 @@ function SyncVerseHeader({ canvas, onRename }: { canvas: SyncVerseCanvas; onRena
         <input className="syncverse-title-input" value={val} autoFocus
           onChange={e => setVal(e.target.value)}
           onBlur={() => { onRename(val); setEditing(false) }}
-          onKeyDown={e => { if (e.key === 'Enter') { onRename(val); setEditing(false) } if (e.key === 'Escape') setEditing(false) }}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { onRename(val); setEditing(false) }
+            if (e.key === 'Escape') setEditing(false)
+          }}
         />
       ) : (
         <span className="syncverse-title" onClick={() => setEditing(true)} title="Click to rename">
           🌐 {canvas.name} ✎
         </span>
       )}
-      <span className="syncverse-hint">Drag nodes · Connect ports · Click line to name/delete</span>
+      <span className="syncverse-hint">Drag · Connect · Click line to name or delete</span>
     </div>
   )
 }
+
+// ── Main SyncVerse ────────────────────────────────────────────────────────────
+interface Props { canvas: SyncVerseCanvas }
 
 export default function SyncVerse({ canvas }: Props) {
   const { updateCanvas, notes } = useNotesStore()
   const [labelPopupEdge, setLabelPopupEdge] = useState<Edge | null>(null)
 
-  // Load nodes from canvas
-  const initialNodes: Node[] = canvas.nodes.map(n => ({
+  // Build initial nodes from persisted canvas
+  const initialNodes: Node[] = (canvas.nodes || []).map(n => ({
     id: n.id, type: n.type, position: n.position, data: n.data,
-    style: { width: n.width, height: n.height },
   }))
 
-  // Load edges from canvas — restore persisted edges
+  // Build initial edges from persisted canvas — this is what fixes persistence
   const initialEdges: Edge[] = (canvas.edges || []).map(e => ({
     id: e.id, source: e.source, target: e.target,
-    label: e.label, animated: e.animated,
+    label: e.label || undefined,
+    animated: e.animated ?? true,
     type: 'synclyx',
-    style: { stroke: '#a833b9', strokeWidth: 2 },
   }))
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
-  // Listen for edge delete events from custom edge component
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const edgeId = (e as CustomEvent).detail
-      setEdges(eds => {
-        const updated = eds.filter(ed => ed.id !== edgeId)
-        updateCanvas(canvas.id, {
-          edges: updated.map(ed => ({ id: ed.id, source: ed.source, target: ed.target, label: typeof ed.label === 'string' ? ed.label : undefined, animated: ed.animated }))
-        })
-        return updated
-      })
-    }
-    document.addEventListener('synclyx:delete-edge', handler)
-    return () => document.removeEventListener('synclyx:delete-edge', handler)
-  }, [canvas.id])
-
-  // Persist edges on every change
-  const persistEdges = useCallback((newEdges: Edge[]) => {
+  // Persist edges to store
+  const saveEdges = useCallback((newEdges: Edge[]) => {
     updateCanvas(canvas.id, {
       edges: newEdges.map(e => ({
         id: e.id, source: e.source, target: e.target,
@@ -149,56 +143,74 @@ export default function SyncVerse({ canvas }: Props) {
     })
   }, [canvas.id, updateCanvas])
 
+  // Persist nodes positions to store
+  const onNodeDragStop = useCallback((_: any, node: Node) => {
+    const updated = (canvas.nodes || []).map(n =>
+      n.id === node.id ? { ...n, position: node.position } : n
+    )
+    updateCanvas(canvas.id, { nodes: updated })
+  }, [canvas, updateCanvas])
+
+  // Delete nodes — also clean up connected edges
+  const onNodesDelete = useCallback((deleted: Node[]) => {
+    const ids = new Set(deleted.map(n => n.id))
+    const updatedNodes = (canvas.nodes || []).filter(n => !ids.has(n.id))
+    const updatedEdges = (canvas.edges || []).filter(e => !ids.has(e.source) && !ids.has(e.target))
+    updateCanvas(canvas.id, { nodes: updatedNodes, edges: updatedEdges })
+  }, [canvas, updateCanvas])
+
+  // New connection
   const onConnect = useCallback((connection: Connection) => {
     const newEdge: Edge = {
-      ...connection, id: generateId(),
+      ...connection,
+      id: generateId(),
       type: 'synclyx',
-      style: { stroke: '#a833b9', strokeWidth: 2 },
       animated: true,
     }
     setEdges(eds => {
       const updated = addEdge(newEdge, eds)
-      persistEdges(updated)
+      saveEdges(updated)
       return updated
     })
-  }, [persistEdges])
+  }, [saveEdges])
 
+  // Click edge — open label popup
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     setLabelPopupEdge(edge)
   }, [])
 
-  const handleEdgeLabel = (edgeId: string, label: string) => {
+  // Save edge label
+  const handleEdgeLabelSave = (edgeId: string, label: string) => {
     setEdges(eds => {
       const updated = eds.map(e => e.id === edgeId ? { ...e, label } : e)
-      persistEdges(updated)
+      saveEdges(updated)
       return updated
     })
   }
 
-  const onNodeDragStop = useCallback((_: any, node: Node) => {
-    const updated = canvas.nodes.map(n => n.id === node.id ? { ...n, position: node.position } : n)
-    updateCanvas(canvas.id, { nodes: updated })
-  }, [canvas, updateCanvas])
+  // Delete edge
+  const handleEdgeDelete = (edgeId: string) => {
+    setEdges(eds => {
+      const updated = eds.filter(e => e.id !== edgeId)
+      saveEdges(updated)
+      return updated
+    })
+  }
 
-  // Delete node
-  const onNodesDelete = useCallback((deleted: Node[]) => {
-    const ids = new Set(deleted.map(n => n.id))
-    const updatedNodes = canvas.nodes.filter(n => !ids.has(n.id))
-    const updatedEdges = canvas.edges.filter(e => !ids.has(e.source) && !ids.has(e.target))
-    updateCanvas(canvas.id, { nodes: updatedNodes, edges: updatedEdges })
-  }, [canvas, updateCanvas])
-
-  const addNode = (type: string, data: any, position?: { x: number; y: number }) => {
+  // Add node to canvas
+  const addNode = (type: string, data: any) => {
     const id = `node-${generateId()}`
-    const pos = position || { x: 200 + Math.random() * 300, y: 200 + Math.random() * 200 }
-    const newNode: Node = { id, type, position: pos, data }
+    const position = { x: 200 + Math.random() * 300, y: 150 + Math.random() * 200 }
+    const newNode: Node = { id, type, position, data }
     setNodes(ns => [...ns, newNode])
-    updateCanvas(canvas.id, { nodes: [...canvas.nodes, { id, type: type as any, position: pos, data }] })
+    updateCanvas(canvas.id, {
+      nodes: [...(canvas.nodes || []), { id, type: type as any, position, data }]
+    })
   }
 
   const handleFABAction = (action: string, extra?: any) => {
-    const blockActions = ['text','heading','list','checklist','code','image','link','video','audio','file','table']
-    if (blockActions.includes(action)) {
+    const blockTypes = ['text','heading','list','checklist','code','image','link','video','audio','file','table']
+    if (blockTypes.includes(action)) {
       const block: Block = {
         id: generateId(), type: action as BlockType, content: '', createdAt: Date.now(),
         items: action === 'checklist' ? [{ id: generateId(), text: '', checked: false }] : undefined,
@@ -215,35 +227,48 @@ export default function SyncVerse({ canvas }: Props) {
   return (
     <div className="syncverse-wrap">
       <ReactFlow
-        nodes={nodes} edges={edges}
+        nodes={nodes}
+        edges={edges}
         onNodesChange={onNodesChange}
-        onEdgesChange={changes => { onEdgesChange(changes) }}
+        onEdgesChange={changes => {
+          onEdgesChange(changes)
+        }}
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onNodesDelete={onNodesDelete}
         onEdgeClick={onEdgeClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView snapToGrid snapGrid={[16, 16]}
+        fitView
+        snapToGrid
+        snapGrid={[16, 16]}
         defaultViewport={canvas.viewport}
         deleteKeyCode="Delete"
-        proOptions={{ hideAttribution: true }}>
+        proOptions={{ hideAttribution: true }}
+      >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--border)" />
         <Controls style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />
-        <MiniMap style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} nodeColor="var(--accent)" />
+        <MiniMap
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+          nodeColor="var(--accent)"
+        />
         <Panel position="top-left">
-          <SyncVerseHeader canvas={canvas} onRename={(name) => updateCanvas(canvas.id, { name })} />
+          <SyncVerseHeader canvas={canvas} onRename={name => updateCanvas(canvas.id, { name })} />
         </Panel>
         <Panel position="top-right">
-          <div className="syncverse-hint-panel">Press Delete to remove selected node or line</div>
+          <div className="syncverse-hint-panel">
+            Select node/line + Delete key to remove
+          </div>
         </Panel>
       </ReactFlow>
+
       <CanvasFAB onAction={handleFABAction} notes={notes} />
 
       {labelPopupEdge && (
         <EdgeLabelPopup
           edge={labelPopupEdge}
-          onSave={handleEdgeLabel}
+          onSave={handleEdgeLabelSave}
+          onDelete={handleEdgeDelete}
           onClose={() => setLabelPopupEdge(null)}
         />
       )}
