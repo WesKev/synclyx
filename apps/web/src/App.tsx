@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useThemeStore } from './store/themeStore'
+import { useSyncVerseThemeStore } from './store/syncVerseThemeStore'
 import { useNotesStore } from './store/notesStore'
 import Sidebar from './components/shared/Sidebar'
 import NoteEditor from './components/notepad/NoteEditor'
@@ -20,6 +21,7 @@ export type AppView = 'notes' | 'syncverse'
 
 export default function App() {
   const { theme } = useThemeStore()
+  const { theme: svTheme } = useSyncVerseThemeStore()
   const { canvases, activeCanvasId, addNote } = useNotesStore()
   const [view, setView] = useState<AppView>('notes')
 
@@ -27,7 +29,6 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
-  // Listen for SyncVerse → Notes switch
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as AppView
@@ -50,6 +51,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <FloatingFormat />
+
       {/* View switcher */}
       <div className="view-switcher">
         <button className={`view-btn ${view === 'notes' ? 'active' : ''}`}
@@ -71,7 +73,7 @@ export default function App() {
           <FAB onSyncVerse={() => setView('syncverse')} />
         </>
       ) : (
-        <>
+        <div className="syncverse-view-root" data-sv-theme={svTheme} style={{ display: 'flex', width: '100%' }}>
           <SyncVerseSidebar />
           <main className="app-main syncverse-main">
             {activeCanvas
@@ -88,7 +90,7 @@ export default function App() {
             }
           </main>
           <FAB onSyncVerse={() => setView('notes')} isSyncVerseView />
-        </>
+        </div>
       )}
     </div>
   )

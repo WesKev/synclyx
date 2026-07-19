@@ -356,6 +356,7 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
                   </div>
                   {highlightedCol === ci && (
                     <div className="col-hover-popup" onClick={e => e.stopPropagation()}>
+                      <div className="popup-drag-handle" title="Drag to reorder column (coming soon)">⠿</div>
                       <button className={`popup-action ${meta.frozenCol >= ci ? 'active' : ''}`}
                         onClick={() => updateMeta({ ...meta, frozenCol: meta.frozenCol >= ci ? -1 : ci })} title="Freeze">🧊</button>
                       <div style={{ position: 'relative' }}>
@@ -398,6 +399,7 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
                   </div>
                   {highlightedRow === ri && (
                     <div className="row-hover-popup" onClick={e => e.stopPropagation()}>
+                      <div className="popup-drag-handle" title="Drag to reorder row (coming soon)">⠿</div>
                       <button className={`popup-action ${meta.frozenRow >= ri ? 'active' : ''}`}
                         onClick={() => updateMeta({ ...meta, frozenRow: meta.frozenRow >= ri ? -1 : ri })} title="Freeze">🧊</button>
                       <button className="popup-action" onClick={() => insertRowAbove(ri)} title="Insert above">↑+</button>

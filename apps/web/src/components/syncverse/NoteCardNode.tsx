@@ -1,10 +1,11 @@
 import React from 'react'
-import { Handle, Position, NodeProps } from '@xyflow/react'
+import { Handle, Position, NodeProps, useReactFlow } from '@xyflow/react'
 import { useNotesStore } from '../../store/notesStore'
 
-export default function NoteCardNode({ data, selected }: NodeProps) {
+export default function NoteCardNode({ id, data, selected }: NodeProps) {
   const { notes, setActiveNote } = useNotesStore()
   const note = notes.find(n => n.id === data.noteId)
+  const { deleteElements } = useReactFlow()
 
   return (
     <div className={`sv-node sv-note-card-node ${selected ? 'sv-node-selected' : ''}`}>
@@ -16,6 +17,7 @@ export default function NoteCardNode({ data, selected }: NodeProps) {
       <div className="sv-note-card-header">
         <span className="sv-note-card-icon">📝</span>
         <span className="sv-note-card-title">{note?.title || (data.label as string) || 'Note'}</span>
+        <button className="sv-node-delete" onClick={() => deleteElements({ nodes: [{ id }] })} title="Delete">✕</button>
       </div>
       <div className="sv-note-card-body">
         <p className="sv-note-card-preview">
@@ -30,7 +32,6 @@ export default function NoteCardNode({ data, selected }: NodeProps) {
         e.stopPropagation()
         if (note) {
           setActiveNote(note.id)
-          // Switch to notes view via custom event
           window.dispatchEvent(new CustomEvent('synclyx:switch-view', { detail: 'notes' }))
         }
       }}>

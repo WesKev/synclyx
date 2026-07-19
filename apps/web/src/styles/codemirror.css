@@ -789,3 +789,113 @@
   outline: 1.5px dashed var(--accent) !important;
   outline-offset: -1px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UPDATED PALETTE
+   Primary #0B032D · Secondary #A833B9 · Neutral #F1EDED
+   Accent Green #2E9E28 · Accent Orange #FE9000
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --accent-green: #2E9E28;
+  --accent-green-dim: #2E9E2820;
+  --accent-orange: #FE9000;
+  --accent-orange-dim: #FE900020;
+}
+
+/* ── SyncVerse independent theme ── */
+/* When data-sv-theme="light" is set on the SyncVerse sidebar, it overrides
+   the local CSS vars for that subtree only, independent of the main app theme */
+[data-sv-theme="light"] {
+  --bg: #f1eded;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f7f4f4;
+  --bg-hover: #ede8e8;
+  --border: #ddd5d5;
+  --text: #0b032d;
+  --text-muted: #6b5b7e;
+  --text-faint: #b0a0c0;
+}
+[data-sv-theme="dark"] {
+  --bg: #0b032d;
+  --bg-surface: #160a3a;
+  --bg-elevated: #1e1047;
+  --bg-hover: #251356;
+  --border: #2e1660;
+  --text: #f1eded;
+  --text-muted: #9b8db0;
+  --text-faint: #5a4d6e;
+}
+
+/* The SyncVerse main canvas area also needs to respect the SV theme —
+   applied via a wrapper class set alongside data-sv-theme on the parent view */
+.syncverse-view-root[data-sv-theme="light"] {
+  --bg: #f1eded; --bg-surface: #ffffff; --bg-elevated: #f7f4f4;
+  --bg-hover: #ede8e8; --border: #ddd5d5; --text: #0b032d;
+  --text-muted: #6b5b7e; --text-faint: #b0a0c0;
+}
+.syncverse-view-root[data-sv-theme="dark"] {
+  --bg: #0b032d; --bg-surface: #160a3a; --bg-elevated: #1e1047;
+  --bg-hover: #251356; --border: #2e1660; --text: #f1eded;
+  --text-muted: #9b8db0; --text-faint: #5a4d6e;
+}
+
+/* ── Notebook name readability fix (dark mode) ── */
+.sv-notebook-name-text {
+  color: var(--text) !important;
+  font-weight: 500;
+}
+.sv-notebook-item.active .sv-notebook-name-text {
+  color: var(--accent) !important;
+}
+.notebook-edit-input {
+  color: var(--text) !important;
+  background: var(--bg-elevated) !important;
+}
+
+/* ── Row popup — ABOVE the row number ── */
+.row-hover-popup {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  right: auto;
+  top: auto;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.25rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  z-index: 50;
+  white-space: nowrap;
+}
+
+/* ── Drag handles re-added to row/col popups ── */
+.popup-drag-handle {
+  cursor: grab;
+  font-size: 0.875rem;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+.popup-drag-handle:hover { background: var(--bg-hover); color: var(--text); }
+.popup-drag-handle:active { cursor: grabbing; }
+
+/* ── Trash badge (reused on SyncVerse sidebar too) ── */
+.trash-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1rem; height: 1rem; background: #ff4444; color: #fff;
+  border-radius: 50%; font-size: 0.5625rem; font-weight: 700;
+  margin-left: 0.125rem; vertical-align: top;
+}
+
+/* ── Accent color utility classes for future use ── */
+.badge-success { background: var(--accent-green-dim); color: var(--accent-green); }
+.badge-warning { background: var(--accent-orange-dim); color: var(--accent-orange); }

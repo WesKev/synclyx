@@ -1,15 +1,18 @@
 import React, { useState } from 'react'
 import { useNotesStore } from '../../store/notesStore'
+import { useSyncVerseThemeStore } from '../../store/syncVerseThemeStore'
 import { LockSetup, UnlockPrompt } from '../shared/PasswordLock'
-
-const NOTEBOOK_COLORS = ['#a833b9','#7c6aff','#00b894','#e17055','#0984e3','#fdcb6e']
+import TrashView from '../shared/TrashView'
 
 export default function SyncVerseSidebar() {
   const {
     canvases, activeCanvasId, setActiveCanvas, notes,
     lockedItems = {}, moveToTrash, notebooks,
     assignCanvasToNotebook, addNotebook, updateNotebook, deleteNotebook,
+    trash = [],
   } = useNotesStore()
+
+  const { theme, toggle: toggleTheme } = useSyncVerseThemeStore()
 
   const [lockingCanvas, setLockingCanvas] = useState<string | null>(null)
   const [unlockingCanvas, setUnlockingCanvas] = useState<string | null>(null)
@@ -19,6 +22,8 @@ export default function SyncVerseSidebar() {
   const [selectedNotebook, setSelectedNotebook] = useState<string | null>(null)
   const [editingNotebook, setEditingNotebook] = useState<string | null>(null)
   const [editVal, setEditVal] = useState('')
+  const [showTrash, setShowTrash] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
 
   const formatDate = (ts: number) => new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
@@ -26,11 +31,35 @@ export default function SyncVerseSidebar() {
     ? canvases.filter(c => c.notebookId === selectedNotebook)
     : canvases
 
+  if (collapsed) {
+    return (
+      <>
+        <aside className="sidebar sidebar-collapsed" data-sv-theme={theme}>
+          <button className="sidebar-toggle-btn" onClick={() => setCollapsed(false)} title="Expand">▶</button>
+          <button className="theme-toggle-mini" onClick={toggleTheme} title="Toggle SyncVerse theme">
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          <button className="theme-toggle-mini" onClick={() => setShowTrash(true)} title="Trash">🗑</button>
+        </aside>
+        {showTrash && <TrashView onClose={() => setShowTrash(false)} />}
+      </>
+    )
+  }
+
   return (
     <>
-      <aside className="sidebar">
+      <aside className="sidebar" data-sv-theme={theme}>
         <div className="sidebar-header">
           <span className="sidebar-logo">🌐 SyncVerse</span>
+          <div className="sidebar-header-actions">
+            <button className="theme-toggle" onClick={() => setShowTrash(true)} title="Trash">
+              🗑{trash.length > 0 && <span className="trash-badge">{trash.length}</span>}
+            </button>
+            <button className="theme-toggle" onClick={toggleTheme} title="Toggle SyncVerse theme">
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+            <button className="sidebar-toggle-btn" onClick={() => setCollapsed(true)} title="Collapse">◀</button>
+          </div>
         </div>
 
         {/* Notebooks section */}
@@ -58,7 +87,7 @@ export default function SyncVerseSidebar() {
                       className={`sv-notebook-item ${selectedNotebook === nb.id ? 'active' : ''}`}
                       onClick={() => setSelectedNotebook(selectedNotebook === nb.id ? null : nb.id)}>
                       <span className="notebook-dot" style={{ background: nb.color }} />
-                      {nb.name}
+                      <span className="sv-notebook-name-text">{nb.name}</span>
                       <span className="nb-count">{canvases.filter(c => c.notebookId === nb.id).length}</span>
                     </button>
                   )}
@@ -101,7 +130,6 @@ export default function SyncVerseSidebar() {
                     {isLocked && '🔒 '}{canvas.name}
                   </span>
                   <div className="note-item-actions">
-                    {/* Assign to notebook */}
                     <select className="sv-nb-select"
                       value={canvas.notebookId || ''}
                       onClick={e => e.stopPropagation()}
@@ -150,6 +178,7 @@ export default function SyncVerseSidebar() {
           onCancel={() => setUnlockingCanvas(null)}
         />
       )}
+      {showTrash && <TrashView onClose={() => setShowTrash(false)} />}
     </>
   )
 }
