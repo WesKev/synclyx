@@ -899,3 +899,107 @@
 /* ── Accent color utility classes for future use ── */
 .badge-success { background: var(--accent-green-dim); color: var(--accent-green); }
 .badge-warning { background: var(--accent-orange-dim); color: var(--accent-orange); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHUNK 5 FIXES — drag reorder visuals, row popup positioning,
+   notebook text color, trash icon visibility
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Drag over visual feedback ── */
+.drag-over-row td {
+  border-top: 2px solid var(--accent) !important;
+}
+.drag-over-col {
+  border-left: 2px solid var(--accent) !important;
+}
+.popup-drag-handle[draggable="true"] {
+  cursor: grab;
+}
+.popup-drag-handle[draggable="true"]:active {
+  cursor: grabbing;
+  opacity: 0.6;
+}
+
+/* ── Row popup — smart position, never cut off ── */
+/* Default: appears ABOVE the row */
+.row-hover-popup {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  top: auto;
+  right: auto;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.25rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  z-index: 60;
+  white-space: nowrap;
+  max-width: none;
+}
+
+/* When too close to top of table (row 0 or 1), flip BELOW instead */
+.row-hover-popup.row-popup-below {
+  bottom: auto;
+  top: calc(100% + 4px);
+}
+
+/* Make sure the table scroll container doesn't clip the popup */
+.table-pro-scroll {
+  overflow: visible !important;
+  overflow-x: auto !important;
+}
+.block-table-pro {
+  overflow: visible;
+}
+
+/* ── Notebook name text — force readable color in both themes ── */
+.sv-notebook-name-text,
+.sv-notebooks-toggle,
+.sv-notebook-item {
+  color: var(--text) !important;
+}
+.sv-notebook-item.active .sv-notebook-name-text {
+  color: var(--accent) !important;
+}
+[data-sv-theme="dark"] .sv-notebook-name-text,
+[data-sv-theme="dark"] .sv-notebooks-toggle {
+  color: #f1eded !important;
+}
+[data-sv-theme="light"] .sv-notebook-name-text,
+[data-sv-theme="light"] .sv-notebooks-toggle {
+  color: #0b032d !important;
+}
+
+/* ── Trash icon — force visible in dark mode ── */
+[data-theme="dark"] .theme-toggle,
+[data-sv-theme="dark"] .theme-toggle {
+  color: #f1eded;
+}
+[data-theme="dark"] .theme-toggle:hover,
+[data-sv-theme="dark"] .theme-toggle:hover {
+  background: rgba(241, 237, 237, 0.1);
+}
+
+/* Trash badge stays red/white regardless of theme for visibility */
+.trash-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1rem; height: 1rem; background: #ff4444; color: #fff !important;
+  border-radius: 50%; font-size: 0.5625rem; font-weight: 700;
+  margin-left: 0.125rem; vertical-align: top;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+}
+
+/* Collapsed sidebar trash icon visibility */
+.theme-toggle-mini {
+  font-size: 1.1rem;
+  color: var(--text);
+}
+[data-sv-theme="dark"] .theme-toggle-mini,
+[data-theme="dark"] .theme-toggle-mini {
+  color: #f1eded;
+}

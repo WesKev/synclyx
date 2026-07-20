@@ -133,6 +133,12 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
   const [fillStart, setFillStart] = useState<[number, number] | null>(null)
   const [fillEnd, setFillEnd] = useState<[number, number] | null>(null)
 
+  // ── Row/Col reorder drag state ──────────────────────────────────────────────
+  const [draggingRow, setDraggingRow] = useState<number | null>(null)
+  const [draggingCol, setDraggingCol] = useState<number | null>(null)
+  const [dragOverRow, setDragOverRow] = useState<number | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<number | null>(null)
+
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const emit = useCallback((d: string[][], m: TableMeta) => onChange(d, m), [onChange])
@@ -302,6 +308,49 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
     updateData([header, ...sorted]); setShowSort(false); setHighlightedCol(null)
   }
 
+  // ── Row reorder via drag ──────────────────────────────────────────────────
+  const handleRowDragStart = (e: React.DragEvent, idx: number) => {
+    setDraggingRow(idx)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(idx))
+  }
+  const handleRowDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault()
+    setDragOverRow(idx)
+  }
+  const handleRowDrop = (e: React.DragEvent, idx: number) => {
+    e.preventDefault()
+    if (draggingRow === null || draggingRow === idx) { setDraggingRow(null); setDragOverRow(null); return }
+    const next = [...data]
+    const [removed] = next.splice(draggingRow, 1)
+    next.splice(idx, 0, removed)
+    updateData(next)
+    setDraggingRow(null); setDragOverRow(null); setHighlightedRow(null)
+  }
+
+  // ── Col reorder via drag ──────────────────────────────────────────────────
+  const handleColDragStart = (e: React.DragEvent, idx: number) => {
+    setDraggingCol(idx)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(idx))
+  }
+  const handleColDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault()
+    setDragOverCol(idx)
+  }
+  const handleColDrop = (e: React.DragEvent, idx: number) => {
+    e.preventDefault()
+    if (draggingCol === null || draggingCol === idx) { setDraggingCol(null); setDragOverCol(null); return }
+    const next = data.map(row => {
+      const r = [...row]
+      const [removed] = r.splice(draggingCol, 1)
+      r.splice(idx, 0, removed)
+      return r
+    })
+    updateData(next)
+    setDraggingCol(null); setDragOverCol(null); setHighlightedCol(null)
+  }
+
   const getDisplay = (r: number, c: number) => {
     const val = data[r]?.[c]; if (!val || val.trim() === '') return ''
     if (val.startsWith('=')) return evalFormula(val, data)
@@ -347,8 +396,10 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
               <th className="table-corner-all" />
               {(data[0] || []).map((_, ci) => (
                 <th key={ci}
-                  className={`table-col-header ${highlightedCol === ci ? 'col-highlighted' : ''} ${meta.frozenCol >= ci ? 'frozen-col' : ''}`}
-                  style={{ width: estimateColWidth(data, ci), background: meta.colColors[ci] || undefined }}>
+                  className={`table-col-header ${highlightedCol === ci ? 'col-highlighted' : ''} ${meta.frozenCol >= ci ? 'frozen-col' : ''} ${dragOverCol === ci ? 'drag-over-col' : ''}`}
+                  style={{ width: estimateColWidth(data, ci), background: meta.colColors[ci] || undefined }}
+                  onDragOver={e => handleColDragOver(e, ci)}
+                  onDrop={e => handleColDrop(e, ci)}>
                   <div className="table-col-header-inner"
                     onDoubleClick={e => { e.stopPropagation(); setHighlightedCol(highlightedCol === ci ? null : ci); setHighlightedRow(null); setShowColColor(false); setShowSort(false) }}>
                     <span>{colLabel(ci)}</span>
@@ -356,7 +407,10 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
                   </div>
                   {highlightedCol === ci && (
                     <div className="col-hover-popup" onClick={e => e.stopPropagation()}>
-                      <div className="popup-drag-handle" title="Drag to reorder column (coming soon)">⠿</div>
+                      <div className="popup-drag-handle" title="Drag to reorder column"
+                        draggable
+                        onDragStart={e => handleColDragStart(e, ci)}
+                        onDragEnd={() => { setDraggingCol(null); setDragOverCol(null) }}>⠿</div>
                       <button className={`popup-action ${meta.frozenCol >= ci ? 'active' : ''}`}
                         onClick={() => updateMeta({ ...meta, frozenCol: meta.frozenCol >= ci ? -1 : ci })} title="Freeze">🧊</button>
                       <div style={{ position: 'relative' }}>
@@ -390,7 +444,10 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
           </thead>
           <tbody>
             {data.map((row, ri) => (
-              <tr key={ri} className={highlightedRow === ri ? 'row-highlighted' : ''}>
+              <tr key={ri}
+                className={`${highlightedRow === ri ? 'row-highlighted' : ''} ${dragOverRow === ri ? 'drag-over-row' : ''}`}
+                onDragOver={e => handleRowDragOver(e, ri)}
+                onDrop={e => handleRowDrop(e, ri)}>
                 <td className={`table-row-num ${meta.frozenRow >= ri ? 'frozen-row-num' : ''}`} style={{ position: 'relative' }}>
                   <div className="table-row-num-inner"
                     onDoubleClick={e => { e.stopPropagation(); setHighlightedRow(highlightedRow === ri ? null : ri); setHighlightedCol(null); setShowRowColor(false) }}>
@@ -398,8 +455,11 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
                     {meta.frozenRow >= ri && <span className="frozen-indicator-small">🧊</span>}
                   </div>
                   {highlightedRow === ri && (
-                    <div className="row-hover-popup" onClick={e => e.stopPropagation()}>
-                      <div className="popup-drag-handle" title="Drag to reorder row (coming soon)">⠿</div>
+                    <div className={`row-hover-popup ${ri <= 1 ? 'row-popup-below' : ''}`} onClick={e => e.stopPropagation()}>
+                      <div className="popup-drag-handle" title="Drag to reorder row"
+                        draggable
+                        onDragStart={e => handleRowDragStart(e, ri)}
+                        onDragEnd={() => { setDraggingRow(null); setDragOverRow(null) }}>⠿</div>
                       <button className={`popup-action ${meta.frozenRow >= ri ? 'active' : ''}`}
                         onClick={() => updateMeta({ ...meta, frozenRow: meta.frozenRow >= ri ? -1 : ri })} title="Freeze">🧊</button>
                       <button className="popup-action" onClick={() => insertRowAbove(ri)} title="Insert above">↑+</button>
