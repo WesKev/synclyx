@@ -1,5 +1,5 @@
 import React from 'react'
-import { Handle, Position, NodeProps, useReactFlow } from '@xyflow/react'
+import { Handle, Position, NodeProps, useReactFlow, NodeResizer } from '@xyflow/react'
 import { useNotesStore } from '../../store/notesStore'
 
 export default function NoteCardNode({ id, data, selected }: NodeProps) {
@@ -8,35 +8,44 @@ export default function NoteCardNode({ id, data, selected }: NodeProps) {
   const { deleteElements } = useReactFlow()
 
   return (
-    <div className={`sv-node sv-note-card-node ${selected ? 'sv-node-selected' : ''}`}>
-      <Handle type="target" position={Position.Left} className="sv-handle" />
-      <Handle type="source" position={Position.Right} className="sv-handle" />
-      <Handle type="target" position={Position.Top} className="sv-handle sv-handle-top" />
-      <Handle type="source" position={Position.Bottom} className="sv-handle sv-handle-bottom" />
+    <>
+      <NodeResizer
+        isVisible={selected}
+        minWidth={220}
+        minHeight={140}
+        handleStyle={{ width: 8, height: 8, borderRadius: 2, background: '#a833b9' }}
+        lineStyle={{ borderColor: '#a833b9' }}
+      />
+      <div className={`sv-node sv-note-card-node sv-node-resizable ${selected ? 'sv-node-selected' : ''}`}>
+        <Handle type="target" position={Position.Left} className="sv-handle" />
+        <Handle type="source" position={Position.Right} className="sv-handle" />
+        <Handle type="target" position={Position.Top} className="sv-handle sv-handle-top" />
+        <Handle type="source" position={Position.Bottom} className="sv-handle sv-handle-bottom" />
 
-      <div className="sv-note-card-header">
-        <span className="sv-note-card-icon">📝</span>
-        <span className="sv-note-card-title">{note?.title || (data.label as string) || 'Note'}</span>
-        <button className="sv-node-delete" onClick={() => deleteElements({ nodes: [{ id }] })} title="Delete">✕</button>
-      </div>
-      <div className="sv-note-card-body">
-        <p className="sv-note-card-preview">
-          {note?.blocks.find(b => b.type === 'text')?.content?.slice(0, 100) || 'No preview'}
-        </p>
-        <div className="sv-note-card-meta">
-          <span>{note?.blocks.length || 0} blocks</span>
-          {note?.tags.length ? <span>{note.tags.slice(0,2).map(t => `#${t}`).join(' ')}</span> : null}
+        <div className="sv-note-card-header">
+          <span className="sv-note-card-icon">📝</span>
+          <span className="sv-note-card-title">{note?.title || (data.label as string) || 'Note'}</span>
+          <button className="sv-node-delete" onClick={() => deleteElements({ nodes: [{ id }] })} title="Delete">✕</button>
         </div>
+        <div className="sv-note-card-body sv-fill-height">
+          <p className="sv-note-card-preview">
+            {note?.blocks.find(b => b.type === 'text')?.content || 'No preview'}
+          </p>
+          <div className="sv-note-card-meta">
+            <span>{note?.blocks.length || 0} blocks</span>
+            {note?.tags.length ? <span>{note.tags.slice(0,2).map(t => `#${t}`).join(' ')}</span> : null}
+          </div>
+        </div>
+        <button className="sv-note-card-open" onClick={(e) => {
+          e.stopPropagation()
+          if (note) {
+            setActiveNote(note.id)
+            window.dispatchEvent(new CustomEvent('synclyx:switch-view', { detail: 'notes' }))
+          }
+        }}>
+          Open note →
+        </button>
       </div>
-      <button className="sv-note-card-open" onClick={(e) => {
-        e.stopPropagation()
-        if (note) {
-          setActiveNote(note.id)
-          window.dispatchEvent(new CustomEvent('synclyx:switch-view', { detail: 'notes' }))
-        }
-      }}>
-        Open note →
-      </button>
-    </div>
+    </>
   )
 }

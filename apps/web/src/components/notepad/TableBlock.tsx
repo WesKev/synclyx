@@ -116,6 +116,7 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
   const [showInfo, setShowInfo] = useState(false)
   const [activeCell, setActiveCell] = useState<[number, number] | null>(null)
   const [highlightedRow, setHighlightedRow] = useState<number | null>(null)
+  const [rowPopupPos, setRowPopupPos] = useState<{ x: number; y: number } | null>(null)
   const [highlightedCol, setHighlightedCol] = useState<number | null>(null)
   const [showRowColor, setShowRowColor] = useState(false)
   const [showColColor, setShowColColor] = useState(false)
@@ -340,7 +341,7 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
   }
 
   const dismissAll = () => {
-    setHighlightedRow(null); setHighlightedCol(null)
+    setHighlightedRow(null); setHighlightedCol(null); setRowPopupPos(null)
     setShowRowColor(false); setShowColColor(false); setShowSort(false)
     if (!isSelectingRange) { setRangeStart(null); setRangeEnd(null) }
   }
@@ -432,12 +433,27 @@ export default function TableBlock({ rows, cols, initialData, initialMeta, onCha
               <tr key={ri} className={highlightedRow === ri ? 'row-highlighted' : ''}>
                 <td className={`table-row-num ${meta.frozenRow >= ri ? 'frozen-row-num' : ''}`} style={{ position: 'relative' }}>
                   <div className="table-row-num-inner"
-                    onDoubleClick={e => { e.stopPropagation(); setHighlightedRow(highlightedRow === ri ? null : ri); setHighlightedCol(null); setShowRowColor(false) }}>
+                    onDoubleClick={e => {
+                      e.stopPropagation()
+                      if (highlightedRow === ri) { setHighlightedRow(null); setRowPopupPos(null) }
+                      else {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                        setRowPopupPos({ x: rect.right + 8, y: rect.top })
+                        setHighlightedRow(ri)
+                      }
+                      setHighlightedCol(null); setShowRowColor(false)
+                    }}>
                     <span>{ri + 1}</span>
                     {meta.frozenRow >= ri && <span className="frozen-indicator-small">🧊</span>}
                   </div>
-                  {highlightedRow === ri && (
-                    <div className={`row-hover-popup popup-grid-2col ${ri <= 1 ? 'row-popup-below' : ''}`} onClick={e => e.stopPropagation()}>
+                  {highlightedRow === ri && rowPopupPos && (
+                    <div className="row-hover-popup popup-grid-2col row-popup-fixed"
+                      style={{
+                        position: 'fixed',
+                        left: Math.min(rowPopupPos.x, window.innerWidth - 90),
+                        top: Math.min(Math.max(rowPopupPos.y - 20, 8), window.innerHeight - 100),
+                      }}
+                      onClick={e => e.stopPropagation()}>
                       <button className="popup-action" onClick={() => moveRow(ri, -1)} title="Move up" disabled={ri === 0}>↑</button>
                       <button className="popup-action" onClick={() => moveRow(ri, 1)} title="Move down" disabled={ri === data.length - 1}>↓</button>
                       <button className={`popup-action ${meta.frozenRow >= ri ? 'active' : ''}`}

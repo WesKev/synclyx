@@ -113,6 +113,7 @@ function SyncVerseInner({ canvas }: Props) {
 
   const initialNodes: Node[] = (canvas.nodes || []).map(n => ({
     id: n.id, type: n.type, position: n.position, data: n.data,
+    style: { width: n.width || 280, height: n.height || 180 },
   }))
 
   const initialEdges: Edge[] = (canvas.edges || []).map(e => ({
@@ -139,6 +140,20 @@ function SyncVerseInner({ canvas }: Props) {
     const updated = (canvas.nodes || []).map(n => n.id === node.id ? { ...n, position: node.position } : n)
     updateCanvas(canvas.id, { nodes: updated })
   }, [canvas, updateCanvas])
+
+  // Persist resize changes (width/height) — NodeResizer changes flow through onNodesChange
+  // with a 'dimensions' type change, so we hook into the standard change handler
+  const handleNodesChange = useCallback((changes: any[]) => {
+    onNodesChange(changes)
+    const dimChanges = changes.filter((c: any) => c.type === 'dimensions' && c.dimensions)
+    if (dimChanges.length > 0) {
+      const updated = (canvas.nodes || []).map(n => {
+        const match = dimChanges.find((c: any) => c.id === n.id)
+        return match ? { ...n, width: match.dimensions.width, height: match.dimensions.height } : n
+      })
+      updateCanvas(canvas.id, { nodes: updated })
+    }
+  }, [onNodesChange, canvas, updateCanvas])
 
   const onNodesDelete = useCallback((deleted: Node[]) => {
     const ids = new Set(deleted.map(n => n.id))
@@ -179,9 +194,11 @@ function SyncVerseInner({ canvas }: Props) {
   const addNode = (type: string, data: any) => {
     const id = `node-${generateId()}`
     const position = { x: 200 + Math.random() * 300, y: 150 + Math.random() * 200 }
-    const newNode: Node = { id, type, position, data }
+    // Give nodes a sensible default size so they aren't cramped — user can resize via corner handle
+    const defaultSize = type === 'sticky' ? { width: 200, height: 160 } : { width: 280, height: 180 }
+    const newNode: Node = { id, type, position, data, style: defaultSize }
     setNodes(ns => [...ns, newNode])
-    updateCanvas(canvas.id, { nodes: [...(canvas.nodes || []), { id, type: type as any, position, data }] })
+    updateCanvas(canvas.id, { nodes: [...(canvas.nodes || []), { id, type: type as any, position, data, width: defaultSize.width, height: defaultSize.height }] })
   }
 
   const handleFABAction = (action: string, extra?: any) => {
@@ -205,7 +222,7 @@ function SyncVerseInner({ canvas }: Props) {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
+        onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
