@@ -34,7 +34,7 @@ export default function BlockRenderer(props: Props) {
 }
 
 // ─── Text Block ───────────────────────────────────────────────────────────────
-function TextBlock({ block, onKeyDown, onChange, onAddBlockAfter }: Props) {
+function TextBlock({ block, onKeyDown, onChange }: Props) {
   return (
     <div className="block block-text-wrap">
       <MarkdownText
@@ -52,7 +52,7 @@ function TextBlock({ block, onKeyDown, onChange, onAddBlockAfter }: Props) {
 }
 
 // ─── Heading Block ────────────────────────────────────────────────────────────
-function HeadingBlock({ block, onRemove, onUpdateMeta, onAddBlockAfter, onChange }: Props) {
+function HeadingBlock({ block, onRemove, onUpdateMeta, onAddBlockAfter }: Props) {
   const [level, setLevel] = useState(block.meta?.level || 'h1')
   const [focused, setFocused] = useState(false)
 
@@ -92,23 +92,36 @@ function HeadingBlock({ block, onRemove, onUpdateMeta, onAddBlockAfter, onChange
 }
 
 // ─── List Block ───────────────────────────────────────────────────────────────
+// Has an editable name header (like Checklist), bullet/numbered toggle,
+// and a remove button that only appears on focus (less dangerous).
 function ListBlock({ block, onRemove, onUpdateMeta, onAddBlockAfter }: Props) {
   const [ordered, setOrdered] = useState(block.meta?.ordered === 'true')
+  const [name, setName] = useState(block.meta?.name || '')
   const [items, setItems] = useState<string[]>(
     block.meta?.items ? JSON.parse(block.meta.items) : ['']
   )
+  const [focused, setFocused] = useState(false)
   const refs = useRef<(HTMLInputElement | null)[]>([])
+
+  const save = (nextOrdered: boolean, nextItems: string[], nextName: string) => {
+    onUpdateMeta({
+      ...block.meta,
+      ordered: String(nextOrdered),
+      items: JSON.stringify(nextItems),
+      name: nextName,
+    })
+  }
 
   const update = (idx: number, val: string) => {
     const next = items.map((item, i) => i === idx ? val : item)
     setItems(next)
-    onUpdateMeta({ ...block.meta, ordered: String(ordered), items: JSON.stringify(next) })
+    save(ordered, next, name)
   }
 
   const addItem = (afterIdx: number) => {
     const next = [...items.slice(0, afterIdx + 1), '', ...items.slice(afterIdx + 1)]
     setItems(next)
-    onUpdateMeta({ ...block.meta, ordered: String(ordered), items: JSON.stringify(next) })
+    save(ordered, next, name)
     setTimeout(() => refs.current[afterIdx + 1]?.focus(), 30)
   }
 
@@ -116,23 +129,60 @@ function ListBlock({ block, onRemove, onUpdateMeta, onAddBlockAfter }: Props) {
     if (items.length === 1) { onRemove(); return }
     const next = items.filter((_, i) => i !== idx)
     setItems(next)
-    onUpdateMeta({ ...block.meta, ordered: String(ordered), items: JSON.stringify(next) })
+    save(ordered, next, name)
     setTimeout(() => refs.current[Math.max(0, idx - 1)]?.focus(), 30)
   }
 
+  const toggleOrdered = (val: boolean) => {
+    setOrdered(val)
+    save(val, items, name)
+  }
+
   return (
-    <div className="block block-list">
-      <div className="list-toolbar">
-        <button className={`list-type-btn ${!ordered ? 'active' : ''}`} onClick={() => setOrdered(false)}>• Bullet</button>
-        <button className={`list-type-btn ${ordered ? 'active' : ''}`} onClick={() => setOrdered(true)}>1. Numbered</button>
-        <button className="block-remove-inline" onClick={onRemove}>✕</button>
+    <div
+      className="block block-list"
+      onFocus={() => setFocused(true)}
+      onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setFocused(false) }}
+    >
+      {/* Header — always visible, editable name like checklist */}
+      <div className="list-header">
+        <span className="list-header-icon">{ordered ? '1.' : '•'}</span>
+        <input
+          className="list-name-input"
+          value={name}
+          placeholder="List name (optional)…"
+          onChange={e => { setName(e.target.value); save(ordered, items, e.target.value) }}
+        />
+        {focused && (
+          <div className="list-header-controls">
+            <button
+              className={`list-type-btn ${!ordered ? 'active' : ''}`}
+              onMouseDown={e => { e.preventDefault(); toggleOrdered(false) }}
+              title="Bullet list"
+            >• Bullet</button>
+            <button
+              className={`list-type-btn ${ordered ? 'active' : ''}`}
+              onMouseDown={e => { e.preventDefault(); toggleOrdered(true) }}
+              title="Numbered list"
+            >1. Numbered</button>
+            {/* Remove only visible on focus — less likely to be hit by accident */}
+            <button
+              className="block-remove-inline"
+              onMouseDown={e => { e.preventDefault(); onRemove() }}
+              title="Remove list"
+            >✕</button>
+          </div>
+        )}
       </div>
+
       <div className="list-items">
         {items.map((item, idx) => (
           <div key={idx} className="list-item">
             <span className="list-marker">{ordered ? `${idx + 1}.` : '•'}</span>
-            <input ref={el => { refs.current[idx] = el }}
-              className="list-item-input" value={item}
+            <input
+              ref={el => { refs.current[idx] = el }}
+              className="list-item-input"
+              value={item}
               onChange={e => update(idx, e.target.value)}
               placeholder="List item..."
               onKeyDown={e => {
@@ -148,7 +198,7 @@ function ListBlock({ block, onRemove, onUpdateMeta, onAddBlockAfter }: Props) {
 }
 
 // ─── Checklist Block ──────────────────────────────────────────────────────────
-function ChecklistBlock({ block, onRemove, onUpdateItems, onAddBlockAfter }: Props) {
+function ChecklistBlock({ block, onRemove, onUpdateMeta, onUpdateItems }: Props) {
   const [items, setItems] = useState<ChecklistItem[]>(
     block.items || [{ id: generateId(), text: '', checked: false }]
   )
@@ -227,7 +277,6 @@ function CodeBlock({ block, onRemove, onUpdateMeta }: Props) {
   )
 }
 
-
 // ─── Image Block ──────────────────────────────────────────────────────────────
 function ImageBlock({ block, onRemove }: Props) {
   return (
@@ -283,16 +332,9 @@ function TableBlock({ block, onRemove, onUpdateMeta }: Props) {
   const initialData = block.meta?.tableData ? JSON.parse(block.meta.tableData) : undefined
   const initialMeta = block.meta?.tableMeta ? JSON.parse(block.meta.tableMeta) : undefined
   return (
-    <TableBlockPro
-      rows={rows}
-      cols={cols}
-      initialData={initialData}
+    <TableBlockPro rows={rows} cols={cols} initialData={initialData}
       initialMeta={initialMeta}
-      onChange={(data, tableMeta) => onUpdateMeta({
-        ...block.meta,
-        tableData: JSON.stringify(data),
-        tableMeta: JSON.stringify(tableMeta)
-      })}
+      onChange={(data, tableMeta) => onUpdateMeta({ ...block.meta, tableData: JSON.stringify(data), tableMeta: JSON.stringify(tableMeta) })}
       onRemove={onRemove}
     />
   )

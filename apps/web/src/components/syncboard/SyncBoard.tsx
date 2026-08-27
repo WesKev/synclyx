@@ -8,7 +8,7 @@ import './SyncBoard.css'
 export default function SyncBoard() {
   const { items, searchQuery, addItem, updateItem, deleteItem, deleteItems, togglePin, clearUnpinned, setSearchQuery } = useSyncBoardStore()
   const { user } = useAuthStore()
-  const { theme, setTheme } = useThemeStore()
+  const { theme, toggle } = useThemeStore()
 
   const [input, setInput] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
@@ -17,8 +17,8 @@ export default function SyncBoard() {
   const [editLabel, setEditLabel] = useState('')
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const filtered = searchQuery.trim()
@@ -78,51 +78,51 @@ export default function SyncBoard() {
   return (
     <div className="syncboard">
 
-      {/* Header */}
       <div className="sb-header">
         <div className="sb-header-top">
           <h2 className="sb-title">SyncBoard</h2>
           <div className="sb-header-actions">
             <span className="sb-count">{items.length} clip{items.length !== 1 ? 's' : ''}</span>
-
-            <button
-              className={`sb-tool-btn ${selectMode ? 'active' : ''}`}
-              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-            >
+            <button className={`sb-tool-btn ${selectMode ? 'active' : ''}`}
+              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}>
               {selectMode ? '✕ Cancel' : '☑ Select'}
             </button>
-
-            {!selectMode && items.some(i => !i.pinned) && (
-              <button className="sb-tool-btn danger" onClick={() => setConfirmClearOpen(true)}>
-                🗑 Clear unpinned
-              </button>
-            )}
-
-            <button
-              className="sb-tool-btn"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              title="Toggle theme"
-            >
+            <button className="sb-tool-btn" onClick={toggle} title="Toggle theme">
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
           </div>
         </div>
 
-        {!user && (
-          <div className="sb-auth-notice">☁️ Sign in to sync SyncBoard across devices</div>
+        {selectMode && (
+          <div className="sb-select-options">
+            <button className="sb-tool-btn" onClick={() => setSelected(new Set(filtered.map(i => i.id)))}>Select all</button>
+            {unpinned.length > 0 && (
+              <button className="sb-tool-btn" onClick={() => setSelected(new Set(unpinned.map(i => i.id)))}>All unpinned</button>
+            )}
+            {pinned.length > 0 && (
+              <button className="sb-tool-btn" onClick={() => setSelected(new Set(pinned.map(i => i.id)))}>All pinned</button>
+            )}
+            {selected.size > 0 && (
+              <button className="sb-tool-btn danger" onClick={() => setConfirmDeleteOpen(true)}>
+                🗑 Delete {selected.size}
+              </button>
+            )}
+            {unpinned.length > 0 && (
+              <button className="sb-tool-btn danger" onClick={() => setConfirmClearOpen(true)}>
+                🗑 Clear unpinned
+              </button>
+            )}
+          </div>
         )}
+
+        {!user && <div className="sb-auth-notice">☁️ Sign in to sync SyncBoard across devices</div>}
       </div>
 
-      {/* Input */}
       <div className="sb-input-area">
-        <textarea
-          ref={textareaRef}
-          className="sb-input"
-          value={input}
+        <textarea ref={textareaRef} className="sb-input" value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleAdd() }}
-          placeholder="Paste or type something to clip… (Ctrl+Enter to add)"
-          rows={3}
+          placeholder="Paste or type something to clip… (Ctrl+Enter to add)" rows={3}
         />
         <div className="sb-input-actions">
           <button className="sb-btn-paste" onClick={handlePaste}>📋 Paste from clipboard</button>
@@ -130,23 +130,13 @@ export default function SyncBoard() {
         </div>
       </div>
 
-      {/* Search */}
       <div className="sb-search-wrap">
-        <input
-          className="sb-search"
-          type="text"
-          value={searchQuery}
+        <input className="sb-search" type="text" value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder="Search by content or name…"
         />
-        {selectMode && (
-          <button className="sb-tool-btn" onClick={() => setSelected(new Set(filtered.map(i => i.id)))}>
-            All
-          </button>
-        )}
       </div>
 
-      {/* List */}
       <div className="sb-list">
         {filtered.length === 0 && (
           <div className="sb-empty">
@@ -160,52 +150,35 @@ export default function SyncBoard() {
 
         {pinned.length > 0 && <div className="sb-section-label">📌 Pinned</div>}
         {pinned.map(item => (
-          <SyncBoardCard
-            key={item.id}
-            item={item}
-            copied={copied === item.id}
-            editing={editingId === item.id}
-            editContent={editContent}
-            editLabel={editLabel}
-            selectMode={selectMode}
-            isSelected={selected.has(item.id)}
-            onCopy={() => handleCopy(item)}
-            onPin={() => togglePin(item.id)}
-            onDelete={() => deleteItem(item.id)}
-            onEdit={() => startEdit(item)}
-            onSaveEdit={saveEdit}
-            onCancelEdit={() => setEditingId(null)}
-            onEditContent={setEditContent}
-            onEditLabel={setEditLabel}
+          <SyncBoardCard key={item.id} item={item}
+            copied={copied === item.id} editing={editingId === item.id}
+            editContent={editContent} editLabel={editLabel}
+            selectMode={selectMode} isSelected={selected.has(item.id)}
+            onCopy={() => handleCopy(item)} onPin={() => togglePin(item.id)}
+            onDelete={() => deleteItem(item.id)} onEdit={() => startEdit(item)}
+            onSaveEdit={saveEdit} onCancelEdit={() => setEditingId(null)}
+            onEditContent={setEditContent} onEditLabel={setEditLabel}
             onToggleSelect={() => toggleSelect(item.id)}
+            onRenameLabel={(label) => updateItem(item.id, { label })}
           />
         ))}
 
         {unpinned.length > 0 && pinned.length > 0 && <div className="sb-section-label">Recent</div>}
         {unpinned.map(item => (
-          <SyncBoardCard
-            key={item.id}
-            item={item}
-            copied={copied === item.id}
-            editing={editingId === item.id}
-            editContent={editContent}
-            editLabel={editLabel}
-            selectMode={selectMode}
-            isSelected={selected.has(item.id)}
-            onCopy={() => handleCopy(item)}
-            onPin={() => togglePin(item.id)}
-            onDelete={() => deleteItem(item.id)}
-            onEdit={() => startEdit(item)}
-            onSaveEdit={saveEdit}
-            onCancelEdit={() => setEditingId(null)}
-            onEditContent={setEditContent}
-            onEditLabel={setEditLabel}
+          <SyncBoardCard key={item.id} item={item}
+            copied={copied === item.id} editing={editingId === item.id}
+            editContent={editContent} editLabel={editLabel}
+            selectMode={selectMode} isSelected={selected.has(item.id)}
+            onCopy={() => handleCopy(item)} onPin={() => togglePin(item.id)}
+            onDelete={() => deleteItem(item.id)} onEdit={() => startEdit(item)}
+            onSaveEdit={saveEdit} onCancelEdit={() => setEditingId(null)}
+            onEditContent={setEditContent} onEditLabel={setEditLabel}
             onToggleSelect={() => toggleSelect(item.id)}
+            onRenameLabel={(label) => updateItem(item.id, { label })}
           />
         ))}
       </div>
 
-      {/* Floating delete bar */}
       {selectMode && selected.size > 0 && (
         <div className="sb-select-bar">
           <span>{selected.size} selected</span>
@@ -215,24 +188,18 @@ export default function SyncBoard() {
         </div>
       )}
 
-      <ConfirmDialog
-        isOpen={confirmClearOpen}
-        title="Clear all unpinned clips?"
-        message={`This permanently deletes ${items.filter(i => !i.pinned).length} clip${items.filter(i => !i.pinned).length !== 1 ? 's' : ''}. Pinned clips stay.`}
-        confirmLabel="Yes, clear them"
-        danger
-        onConfirm={() => { clearUnpinned(); setConfirmClearOpen(false) }}
-        onCancel={() => setConfirmClearOpen(false)}
-      />
-
-      <ConfirmDialog
-        isOpen={confirmDeleteOpen}
+      <ConfirmDialog isOpen={confirmDeleteOpen}
         title={`Delete ${selected.size} clip${selected.size !== 1 ? 's' : ''}?`}
-        message="This cannot be undone."
-        confirmLabel="Delete"
-        danger
+        message="This cannot be undone." confirmLabel="Delete" danger
         onConfirm={() => { deleteItems([...selected]); setSelected(new Set()); setSelectMode(false); setConfirmDeleteOpen(false) }}
         onCancel={() => setConfirmDeleteOpen(false)}
+      />
+      <ConfirmDialog isOpen={confirmClearOpen}
+        title="Clear all unpinned clips?"
+        message={`Permanently deletes ${unpinned.length} clip${unpinned.length !== 1 ? 's' : ''}. Pinned stay.`}
+        confirmLabel="Yes, clear them" danger
+        onConfirm={() => { clearUnpinned(); setSelected(new Set()); setSelectMode(false); setConfirmClearOpen(false) }}
+        onCancel={() => setConfirmClearOpen(false)}
       />
     </div>
   )
@@ -246,45 +213,99 @@ interface CardProps {
   onSaveEdit: () => void; onCancelEdit: () => void
   onEditContent: (v: string) => void; onEditLabel: (v: string) => void
   onToggleSelect: () => void
+  onRenameLabel: (label: string) => void  // ← inline rename without full edit
 }
 
-function SyncBoardCard({ item, copied, editing, editContent, editLabel, selectMode, isSelected, onCopy, onPin, onDelete, onEdit, onSaveEdit, onCancelEdit, onEditContent, onEditLabel, onToggleSelect }: CardProps) {
+function SyncBoardCard({
+  item, copied, editing, editContent, editLabel,
+  selectMode, isSelected,
+  onCopy, onPin, onDelete, onEdit, onSaveEdit, onCancelEdit,
+  onEditContent, onEditLabel, onToggleSelect, onRenameLabel,
+}: CardProps) {
+  const [namingMode, setNamingMode] = useState(false)
+  const [nameInput, setNameInput] = useState(item.label || '')
+  const nameRef = useRef<HTMLInputElement>(null)
+
   const typeIcon = item.type === 'link' ? '🔗' : item.type === 'code' ? '💻' : '📄'
-  const sourceIcon = item.source === 'electron' ? '🖥️' : item.source === 'mobile' ? '📱' : '✍️'
+  const sourceLabel = item.deviceName
+    ? item.deviceName
+    : item.source === 'electron' ? '🖥️ PC'
+    : item.source === 'mobile' ? '📱 Mobile'
+    : '✍️ Manual'
+
+  const saveInlineName = () => {
+    onRenameLabel(nameInput.trim())
+    setNamingMode(false)
+  }
 
   return (
     <div
       className={`sb-card ${item.pinned ? 'pinned' : ''} type-${item.type} ${isSelected ? 'selected' : ''}`}
       onClick={selectMode ? onToggleSelect : undefined}
+      style={selectMode ? { cursor: 'pointer' } : undefined}
     >
       {selectMode && (
         <div className="sb-checkbox">
-          <input type="checkbox" checked={isSelected} onChange={onToggleSelect} onClick={e => e.stopPropagation()} />
+          <input type="checkbox" checked={isSelected} onChange={onToggleSelect}
+            onClick={e => e.stopPropagation()} />
         </div>
       )}
 
+      {/* Meta row */}
       <div className="sb-card-meta">
-        <span>{typeIcon}</span>
-        <span title={`From ${item.source}`}>{sourceIcon}</span>
-        {item.label && !editing && <span className="sb-label">{item.label}</span>}
+        <span className="sb-source">{sourceLabel}</span>
+        <span className="sb-type-icon">{typeIcon}</span>
         <span className="sb-time">{fmtAgo(item.createdAt)}</span>
         {item.pinned && <span className="sb-pin-badge">Pinned</span>}
       </div>
 
+      {/* ── Inline name row — always visible, tap to name/rename ── */}
+      {!editing && (
+        <div className="sb-name-row">
+          {namingMode ? (
+            <div className="sb-name-edit">
+              <input
+                ref={nameRef}
+                className="sb-name-input"
+                value={nameInput}
+                autoFocus
+                placeholder="Name this clip…"
+                onChange={e => setNameInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') saveInlineName()
+                  if (e.key === 'Escape') setNamingMode(false)
+                }}
+                onClick={e => e.stopPropagation()}
+              />
+              <button className="sb-name-save" onClick={e => { e.stopPropagation(); saveInlineName() }}>✓</button>
+              <button className="sb-name-cancel" onClick={e => { e.stopPropagation(); setNamingMode(false) }}>✕</button>
+            </div>
+          ) : (
+            <button
+              className={`sb-name-trigger ${item.label ? 'has-name' : ''}`}
+              onClick={e => {
+                e.stopPropagation()
+                setNameInput(item.label || '')
+                setNamingMode(true)
+                setTimeout(() => nameRef.current?.focus(), 30)
+              }}
+              title="Click to name this clip"
+            >
+              {item.label ? `🏷️ ${item.label}` : '+ Add name'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Full edit mode — content + label */}
       {editing ? (
         <div className="sb-edit-mode">
-          <input
-            className="sb-edit-label"
-            value={editLabel}
+          <input className="sb-edit-label" value={editLabel}
             onChange={e => onEditLabel(e.target.value)}
-            placeholder="Name this clip (optional)…"
+            placeholder="Name this clip (optional)…" autoFocus
           />
-          <textarea
-            className="sb-edit-content"
-            value={editContent}
-            onChange={e => onEditContent(e.target.value)}
-            rows={4}
-            autoFocus
+          <textarea className="sb-edit-content" value={editContent}
+            onChange={e => onEditContent(e.target.value)} rows={4}
           />
           <div className="sb-edit-actions">
             <button className="sb-action-btn save" onClick={onSaveEdit}>✅ Save</button>
@@ -307,7 +328,7 @@ function SyncBoardCard({ item, copied, editing, editContent, editLabel, selectMo
               <button className={`sb-action-btn copy ${copied ? 'copied' : ''}`} onClick={onCopy}>
                 {copied ? '✅ Copied' : '📋 Copy'}
               </button>
-              <button className="sb-action-btn edit" onClick={onEdit}>✏️ Edit</button>
+              <button className="sb-action-btn edit" onClick={onEdit}>✏️ Edit content</button>
               <button className={`sb-action-btn pin ${item.pinned ? 'active' : ''}`} onClick={onPin}>
                 📌 {item.pinned ? 'Unpin' : 'Pin'}
               </button>

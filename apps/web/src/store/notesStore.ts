@@ -15,49 +15,37 @@ import {
 import { db } from '../lib/firebase'
 
 export type BlockType = 'text' | 'code' | 'image' | 'link' | 'video' | 'audio' | 'file' | 'table' | 'checklist' | 'heading' | 'list'
-
 export interface ChecklistItem { id: string; text: string; checked: boolean }
-
 export interface Block {
   id: string; type: BlockType; content: string
   meta?: Record<string, string>; items?: ChecklistItem[]; createdAt: number
 }
-
 export interface NoteVersion { id: string; savedAt: number; title: string; blocks: Block[] }
-
 export interface Note {
   id: string; title: string; blocks: Block[]; tags: string[]
   pinned: boolean; notebookId?: string; linkedNotes: string[]
   font?: string; versions: NoteVersion[]; createdAt: number; updatedAt: number
 }
-
 export interface Notebook { id: string; name: string; color: string; createdAt: number }
-
 export interface TrashedItem {
   id: string; type: 'note' | 'canvas'; data: Note | SyncVerseCanvas; deletedAt: number
 }
-
 export type SyncVerseNodeType = 'block' | 'note' | 'sticky' | 'shape' | 'group'
-
 export interface SyncVerseNode {
   id: string; type: SyncVerseNodeType
   position: { x: number; y: number }
   data: { block?: Block; noteId?: string; label?: string; color?: string; collapsed?: boolean }
   width?: number; height?: number
 }
-
 export interface SyncVerseEdge {
-  id: string; source: string; target: string
-  label?: string; animated?: boolean
+  id: string; source: string; target: string; label?: string; animated?: boolean
 }
-
 export interface SyncVerseCanvas {
   id: string; noteId: string; name: string; notebookId?: string
   nodes: SyncVerseNode[]; edges: SyncVerseEdge[]
   viewport: { x: number; y: number; zoom: number }
   createdAt: number; updatedAt: number
 }
-
 export const PRESET_TAGS = [
   { id: 'personal', label: 'Personal Notes', emoji: '👤' },
   { id: 'work', label: 'Work', emoji: '💼' },
@@ -66,6 +54,8 @@ export const PRESET_TAGS = [
   { id: 'study', label: 'Study', emoji: '📚' },
   { id: 'health', label: 'Health', emoji: '🏥' },
 ]
+
+const MAX_VERSIONS = 5
 
 interface NotesStore {
   notes: Note[]
@@ -83,7 +73,6 @@ interface NotesStore {
 
   startSync: (uid: string) => void
   stopSync: () => void
-
   addNote: () => void
   updateNote: (id: string, updates: Partial<Note>) => void
   deleteNote: (id: string) => void
@@ -113,31 +102,24 @@ interface NotesStore {
 }
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
-const versionTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 
-// ─── Local → Firestore migration ─────────────────────────────────────────────
-// Called once on first sign-in. Batches existing local data up to Firestore
-// so the subsequent onSnapshot listeners find the data and don't wipe local state.
+// ── Local → Firestore migration ───────────────────────────────────────────────
 async function migrateLocalToFirestore(
   uid: string,
   notes: Note[], notebooks: Notebook[],
   canvases: SyncVerseCanvas[], trash: TrashedItem[]
 ) {
   try {
-    // Quick check: if user already has notes in Firestore, skip migration
     const existing = await getDocs(query(collection(db, 'users', uid, 'notes'), limit(1)))
-    if (!existing.empty) return // Returning user — Firestore is the source of truth
-
+    if (!existing.empty) return
     const items = [
       ...notes.map(d => ({ col: 'notes', id: d.id, data: d as object })),
       ...notebooks.map(d => ({ col: 'notebooks', id: d.id, data: d as object })),
       ...canvases.map(d => ({ col: 'canvases', id: d.id, data: d as object })),
       ...trash.map(d => ({ col: 'trash', id: d.id, data: d as object })),
     ]
-
     if (items.length === 0) return
-
-    const CHUNK = 400 // Firestore batch limit is 500
+    const CHUNK = 400
     for (let i = 0; i < items.length; i += CHUNK) {
       const batch = writeBatch(db)
       items.slice(i, i + CHUNK).forEach(({ col, id, data }) => {
@@ -146,7 +128,17 @@ async function migrateLocalToFirestore(
       await batch.commit()
     }
   } catch (e) {
-    console.warn('[Synclyx] Local data migration failed — will retry on next sign-in:', e)
+    console.warn('[Synclyx] Migration failed:', e)
+  }
+}
+
+// ── Version helper ────────────────────────────────────────────────────────────
+function makeVersion(note: Note): NoteVersion {
+  return {
+    id: generateId(),
+    savedAt: Date.now(),
+    title: note.title,
+    blocks: JSON.parse(JSON.stringify(note.blocks)),
   }
 }
 
@@ -158,17 +150,10 @@ export const useNotesStore = create<NotesStore>()(
       canvases: [], activeCanvasId: null,
       _uid: null, _unsubs: [],
 
-      // ── Sync ──────────────────────────────────────────────────────────────
       startSync: (uid) => {
         get()._unsubs.forEach(u => u())
         set({ _uid: uid })
-
-        // Snapshot local data BEFORE any async work so we have a stable copy
         const { notes, notebooks, canvases, trash } = get()
-
-        // Migrate local data first, then start listeners.
-        // This prevents the listeners from firing with empty Firestore data
-        // and overwriting notes the user created before signing in.
         migrateLocalToFirestore(uid, notes, notebooks, canvases, trash).then(() => {
           const unsubs: Unsubscribe[] = []
           unsubs.push(listenToNotes(uid, (n) => set({ notes: n.sort((a, b) => b.updatedAt - a.updatedAt) })))
@@ -184,7 +169,6 @@ export const useNotesStore = create<NotesStore>()(
         set({ _uid: null, _unsubs: [] })
       },
 
-      // ── Notes ──────────────────────────────────────────────────────────────
       addNote: () => {
         const note: Note = {
           id: generateId(), title: 'Untitled', blocks: [], tags: [],
@@ -209,21 +193,6 @@ export const useNotesStore = create<NotesStore>()(
         set(s => ({
           notes: s.notes.map(n => n.id === id ? { ...n, ...updates, updatedAt: Date.now() } : n)
         }))
-
-        if (versionTimers[id]) clearTimeout(versionTimers[id])
-        versionTimers[id] = setTimeout(() => {
-          const note = get().notes.find(n => n.id === id)
-          if (!note) return
-          const version: NoteVersion = {
-            id: generateId(), savedAt: Date.now(),
-            title: note.title, blocks: JSON.parse(JSON.stringify(note.blocks)),
-          }
-          const updated = { ...note, versions: [version, ...note.versions].slice(0, 30) }
-          set(s => ({ notes: s.notes.map(n => n.id === id ? updated : n) }))
-          const uid = get()._uid
-          if (uid) saveNote(uid, updated)
-        }, 3000)
-
         const uid = get()._uid
         if (uid) {
           const note = get().notes.find(n => n.id === id)
@@ -244,7 +213,36 @@ export const useNotesStore = create<NotesStore>()(
         if (uid) { deleteNoteFromFirestore(uid, id); saveTrashItem(uid, trashed) }
       },
 
-      setActiveNote: (id) => set({ activeNoteId: id }),
+      // ── Save version on note switch ──────────────────────────────────────────
+      setActiveNote: (id) => {
+        const { activeNoteId, notes } = get()
+
+        // Save a version of the current note before switching away
+        if (activeNoteId && activeNoteId !== id) {
+          const current = notes.find(n => n.id === activeNoteId)
+          if (current && current.blocks.length > 0) {
+            const version = makeVersion(current)
+            const existingVersions = current.versions || []
+            // Only save if content has actually changed since last version
+            const lastVersion = existingVersions[0]
+            const hasChanged = !lastVersion ||
+              JSON.stringify(lastVersion.blocks) !== JSON.stringify(current.blocks) ||
+              lastVersion.title !== current.title
+
+            if (hasChanged) {
+              const updatedNote = {
+                ...current,
+                versions: [version, ...existingVersions].slice(0, MAX_VERSIONS),
+              }
+              set(s => ({ notes: s.notes.map(n => n.id === activeNoteId ? updatedNote : n) }))
+              const uid = get()._uid
+              if (uid) saveNote(uid, updatedNote)
+            }
+          }
+        }
+
+        set({ activeNoteId: id })
+      },
 
       togglePin: (id) => {
         set(s => ({ notes: s.notes.map(n => n.id === id ? { ...n, pinned: !n.pinned } : n) }))
@@ -255,11 +253,8 @@ export const useNotesStore = create<NotesStore>()(
       saveVersion: (id) => {
         const note = get().notes.find(n => n.id === id)
         if (!note) return
-        const version: NoteVersion = {
-          id: generateId(), savedAt: Date.now(),
-          title: note.title, blocks: JSON.parse(JSON.stringify(note.blocks)),
-        }
-        const updated = { ...note, versions: [version, ...note.versions].slice(0, 20) }
+        const version = makeVersion(note)
+        const updated = { ...note, versions: [version, ...note.versions].slice(0, MAX_VERSIONS) }
         set(s => ({ notes: s.notes.map(n => n.id === id ? updated : n) }))
         const uid = get()._uid
         if (uid) saveNote(uid, updated)
@@ -270,17 +265,14 @@ export const useNotesStore = create<NotesStore>()(
         const uid = get()._uid
         if (uid) saveCustomTags(uid, get().customTags)
       },
-
       removeCustomTag: (tag) => {
         set(s => ({ customTags: s.customTags.filter(t => t !== tag) }))
         const uid = get()._uid
         if (uid) saveCustomTags(uid, get().customTags)
       },
-
       toggleSidebar: () => set(s => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSearchQuery: (q) => set({ searchQuery: q }),
 
-      // ── Trash ──────────────────────────────────────────────────────────────
       moveToTrash: (id, type) => {
         const state = get(); const uid = state._uid
         if (type === 'note') {
@@ -295,7 +287,6 @@ export const useNotesStore = create<NotesStore>()(
           if (uid) { deleteCanvasFromFirestore(uid, id); saveTrashItem(uid, trashed) }
         }
       },
-
       restoreFromTrash: (trashedId) => {
         const item = get().trash.find(t => t.id === trashedId); if (!item) return
         const uid = get()._uid
@@ -307,13 +298,11 @@ export const useNotesStore = create<NotesStore>()(
           if (uid) { saveCanvas(uid, item.data as SyncVerseCanvas); deleteTrashItem(uid, trashedId) }
         }
       },
-
       permanentlyDelete: (trashedId) => {
         set(s => ({ trash: s.trash.filter(t => t.id !== trashedId) }))
         const uid = get()._uid
         if (uid) deleteTrashItem(uid, trashedId)
       },
-
       emptyTrash: () => {
         const ids = get().trash.map(t => t.id)
         set({ trash: [] })
@@ -321,7 +310,6 @@ export const useNotesStore = create<NotesStore>()(
         if (uid) emptyTrashInFirestore(uid, ids)
       },
 
-      // ── Lock ───────────────────────────────────────────────────────────────
       lockItem: (id, password) => {
         const hash = btoa(password + id + 'synclyx_salt')
         set(s => ({ lockedItems: { ...s.lockedItems, [id]: hash } }))
@@ -333,7 +321,6 @@ export const useNotesStore = create<NotesStore>()(
         return stored === btoa(password + id + 'synclyx_salt')
       },
 
-      // ── Notebooks ──────────────────────────────────────────────────────────
       addNotebook: (name) => {
         const nb: Notebook = { id: generateId(), name, color: '#a833b9', createdAt: Date.now() }
         set(s => ({ notebooks: [...s.notebooks, nb] }))
@@ -360,7 +347,6 @@ export const useNotesStore = create<NotesStore>()(
         const uid = get()._uid; if (uid) { const canvas = get().canvases.find(c => c.id === canvasId); if (canvas) saveCanvas(uid, canvas) }
       },
 
-      // ── SyncVerse ──────────────────────────────────────────────────────────
       createCanvas: (fromNoteId) => {
         const note = fromNoteId ? get().notes.find(n => n.id === fromNoteId) : null
         const nodes: SyncVerseNode[] = note
@@ -379,28 +365,20 @@ export const useNotesStore = create<NotesStore>()(
         set(s => ({ canvases: [canvas, ...s.canvases], activeCanvasId: canvas.id }))
         const uid = get()._uid; if (uid) saveCanvas(uid, canvas)
       },
-
       updateCanvas: (id, updates) => {
-        set(s => ({
-          canvases: s.canvases.map(c => c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c)
-        }))
+        set(s => ({ canvases: s.canvases.map(c => c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c) }))
         const uid = get()._uid
         if (uid) { const canvas = get().canvases.find(c => c.id === id); if (canvas) saveCanvas(uid, canvas) }
       },
-
       deleteCanvas: (id) => {
-        set(s => ({
-          canvases: s.canvases.filter(c => c.id !== id),
-          activeCanvasId: s.activeCanvasId === id ? null : s.activeCanvasId,
-        }))
+        set(s => ({ canvases: s.canvases.filter(c => c.id !== id), activeCanvasId: s.activeCanvasId === id ? null : s.activeCanvasId }))
         const uid = get()._uid; if (uid) deleteCanvasFromFirestore(uid, id)
       },
-
       setActiveCanvas: (id) => set({ activeCanvasId: id }),
     }),
     {
       name: 'synclyx-notes',
-      version: 4,
+      version: 5,
       partialize: (s) => ({
         notes: s.notes, activeNoteId: s.activeNoteId, customTags: s.customTags,
         sidebarCollapsed: s.sidebarCollapsed, searchQuery: s.searchQuery,

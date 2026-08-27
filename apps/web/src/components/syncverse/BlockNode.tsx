@@ -1,149 +1,134 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { Handle, Position, NodeProps, useReactFlow, NodeResizer } from '@xyflow/react'
-import { Block, ChecklistItem } from '../../store/notesStore'
-import { useNotesStore } from '../../store/notesStore'
+import { Block, ChecklistItem, useNotesStore } from '../../store/notesStore'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
 
-// Simple debounce — no external dependency needed
 function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): T {
   let timer: ReturnType<typeof setTimeout>
-  return ((...args: any[]) => {
-    clearTimeout(timer)
-    timer = setTimeout(() => fn(...args), ms)
-  }) as T
+  return ((...args: any[]) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms) }) as T
 }
+
+// Shared props to stop React Flow from stealing pointer events
+// on every interactive element inside a node
+const ND = { className: 'nodrag nopan' } as const
 
 export default function BlockNode({ id, data, selected }: NodeProps) {
   const block = data.block as Block
-  const { activeCanvasId, canvases, updateCanvas } = useNotesStore()
+  const { activeCanvasId } = useNotesStore()
 
   const [collapsed, setCollapsed] = useState(false)
   const [localContent, setLocalContent] = useState(block?.content || '')
   const [localItems, setLocalItems] = useState<ChecklistItem[]>(block?.items || [])
   const [code, setCode] = useState(block?.meta?.content || '')
   const [lang, setLang] = useState(block?.meta?.lang || 'javascript')
+  const [listItems, setListItems] = useState<string[]>(
+    block?.meta?.items ? JSON.parse(block.meta.items) : ['']
+  )
+  const [listOrdered, setListOrdered] = useState(block?.meta?.ordered === 'true')
+  const [mediaUrl, setMediaUrl] = useState(block?.meta?.url || '')
+  const [mediaUrlSaved, setMediaUrlSaved] = useState(!!block?.meta?.url)
 
   const { deleteElements } = useReactFlow()
 
-  // ── Save node content back to the canvas store ─────────────────────────────
-  // Uses a ref so the debounced function is stable across renders
   const saveRef = useRef(
-    debounce((
-      nodeId: string,
-      canvasId: string | null,
-      updatedBlock: Block
-    ) => {
+    debounce((nodeId: string, canvasId: string | null, updatedBlock: Block) => {
       if (!canvasId) return
       const { canvases, updateCanvas } = useNotesStore.getState()
       const canvas = canvases.find(c => c.id === canvasId)
       if (!canvas) return
-      const updatedNodes = canvas.nodes.map(n =>
-        n.id === nodeId ? { ...n, data: { ...n.data, block: updatedBlock } } : n
-      )
-      updateCanvas(canvasId, { nodes: updatedNodes })
+      updateCanvas(canvasId, {
+        nodes: canvas.nodes.map(n =>
+          n.id === nodeId ? { ...n, data: { ...n.data, block: updatedBlock } } : n
+        )
+      })
     }, 600)
   )
 
-  const persistContent = (
-    content: string,
-    items: ChecklistItem[],
-    codeContent: string,
-    codeLang: string
-  ) => {
+  const persist = (overrides: Partial<Block>) => {
     if (!block) return
-    const updatedBlock: Block = {
-      ...block,
-      content,
-      items,
-      meta: block.type === 'code'
-        ? { ...block.meta, content: codeContent, lang: codeLang }
-        : block.meta,
-    }
-    saveRef.current(id, activeCanvasId, updatedBlock)
+    saveRef.current(id, activeCanvasId, { ...block, ...overrides })
   }
 
-  const getIcon = () => {
-    const icons: Record<string, string> = {
-      text: '¶', code: '</>', image: '🖼', link: '🔗', video: '🎬',
-      audio: '🎵', file: '📎', table: '⊞', checklist: '✓', heading: 'H', list: '≡',
-    }
-    return icons[block?.type] || '¶'
-  }
-
-  const getPreview = () => {
-    if (!block) return ''
-    switch (block.type) {
-      case 'text': return block.content?.slice(0, 120) || 'Empty text block'
-      case 'heading': return block.meta?.text || block.content || 'Heading'
-      case 'code': return `// ${block.meta?.lang || 'code'}\n${(block.meta?.content || '').slice(0, 80)}`
-      case 'link': return block.meta?.label || block.meta?.url || 'Link'
-      case 'image': return block.meta?.name || 'Image'
-      case 'video': return block.meta?.url || 'Video'
-      case 'audio': return block.meta?.url || 'Audio'
-      case 'file': return block.meta?.name || 'File'
-      case 'table': return 'Table block'
-      case 'list': return block.content?.slice(0, 80) || 'List block'
-      case 'checklist': return `${block.items?.filter(i => i.checked).length || 0}/${block.items?.length || 0} done`
-      default: return block.type
-    }
-  }
+  const getIcon = () => ({
+    text: '¶', code: '</>', image: '🖼', link: '🔗', video: '🎬',
+    audio: '🎵', file: '📎', table: '⊞', checklist: '✓', heading: 'H', list: '≡',
+  }[block?.type] || '¶')
 
   const renderBody = () => {
     if (!block) return null
+
     switch (block.type) {
+
       case 'text':
-      case 'list':
         return (
-          <textarea
-            className="sv-editable-text sv-fill-height"
+          <textarea {...ND} className="nodrag nopan sv-editable-text sv-fill-height"
             value={localContent}
-            onChange={e => {
-              setLocalContent(e.target.value)
-              persistContent(e.target.value, localItems, code, lang)
-            }}
+            onChange={e => { setLocalContent(e.target.value); persist({ content: e.target.value }) }}
             placeholder="Type something..."
           />
         )
 
       case 'heading':
         return (
-          <input
-            className="sv-editable-heading"
+          <input {...ND} className="nodrag nopan sv-editable-heading"
             value={localContent}
-            onChange={e => {
-              setLocalContent(e.target.value)
-              persistContent(e.target.value, localItems, code, lang)
-            }}
+            onChange={e => { setLocalContent(e.target.value); persist({ content: e.target.value }) }}
             placeholder="Heading..."
           />
         )
 
-      case 'code':
+      case 'list':
         return (
-          <div className="sv-code-wrap sv-fill-height">
-            <select
-              className="sv-code-lang"
-              value={lang}
-              onChange={e => {
-                setLang(e.target.value)
-                persistContent(localContent, localItems, code, e.target.value)
+          <div className="sv-list-wrap sv-fill-height">
+            <div className="sv-list-controls">
+              <button {...ND}
+                className={`nodrag nopan sv-list-type-btn ${!listOrdered ? 'active' : ''}`}
+                onClick={() => { setListOrdered(false); persist({ meta: { ...block.meta, ordered: 'false', items: JSON.stringify(listItems) } }) }}
+              >• Bullet</button>
+              <button {...ND}
+                className={`nodrag nopan sv-list-type-btn ${listOrdered ? 'active' : ''}`}
+                onClick={() => { setListOrdered(true); persist({ meta: { ...block.meta, ordered: 'true', items: JSON.stringify(listItems) } }) }}
+              >1. Numbered</button>
+            </div>
+            <div className="sv-list-items">
+              {listItems.map((item, i) => (
+                <div key={i} className="sv-list-item">
+                  <span className="sv-list-marker">{listOrdered ? `${i + 1}.` : '•'}</span>
+                  <input {...ND}
+                    className="nodrag nopan sv-list-item-input"
+                    value={item}
+                    placeholder="Item..."
+                    onChange={e => {
+                      const next = listItems.map((v, j) => j === i ? e.target.value : v)
+                      setListItems(next)
+                      persist({ meta: { ...block.meta, ordered: String(listOrdered), items: JSON.stringify(next) } })
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const next = [...listItems.slice(0, i + 1), '', ...listItems.slice(i + 1)]
+                        setListItems(next)
+                        persist({ meta: { ...block.meta, ordered: String(listOrdered), items: JSON.stringify(next) } })
+                      }
+                      if (e.key === 'Backspace' && item === '' && listItems.length > 1) {
+                        e.preventDefault()
+                        const next = listItems.filter((_, j) => j !== i)
+                        setListItems(next)
+                        persist({ meta: { ...block.meta, ordered: String(listOrdered), items: JSON.stringify(next) } })
+                      }
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <button {...ND} className="nodrag nopan sv-list-add"
+              onClick={() => {
+                const next = [...listItems, '']
+                setListItems(next)
+                persist({ meta: { ...block.meta, ordered: String(listOrdered), items: JSON.stringify(next) } })
               }}
-            >
-              {['javascript', 'typescript', 'python', 'html', 'css', 'json', 'bash', 'sql'].map(l =>
-                <option key={l} value={l}>{l}</option>
-              )}
-            </select>
-            <textarea
-              className="sv-editable-code sv-fill-height"
-              value={code}
-              onChange={e => {
-                setCode(e.target.value)
-                persistContent(localContent, localItems, e.target.value, lang)
-              }}
-              placeholder={`// ${lang}...`}
-              spellCheck={false}
-            />
+            >+ Item</button>
           </div>
         )
 
@@ -152,80 +137,131 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
           <div className="sv-checklist sv-fill-height">
             {localItems.map(item => (
               <div key={item.id} className="sv-check-item">
-                <button
-                  className={`sv-check-box ${item.checked ? 'checked' : ''}`}
+                <button {...ND}
+                  className={`nodrag nopan sv-check-box ${item.checked ? 'checked' : ''}`}
                   onClick={() => {
                     const updated = localItems.map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
-                    setLocalItems(updated)
-                    persistContent(localContent, updated, code, lang)
+                    setLocalItems(updated); persist({ items: updated })
                   }}
-                >
-                  {item.checked ? '✓' : ''}
-                </button>
-                <input
-                  className={`sv-check-text ${item.checked ? 'done' : ''}`}
+                >{item.checked ? '✓' : ''}</button>
+                <input {...ND}
+                  className="nodrag nopan sv-check-text"
                   value={item.text}
+                  placeholder="Item..."
+                  style={item.checked ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}
                   onChange={e => {
                     const updated = localItems.map(i => i.id === item.id ? { ...i, text: e.target.value } : i)
-                    setLocalItems(updated)
-                    persistContent(localContent, updated, code, lang)
+                    setLocalItems(updated); persist({ items: updated })
                   }}
-                  placeholder="Checklist item..."
                 />
               </div>
             ))}
-            <button
-              className="sv-check-add"
+            <button {...ND} className="nodrag nopan sv-check-add"
               onClick={() => {
                 const updated = [...localItems, { id: generateId(), text: '', checked: false }]
-                setLocalItems(updated)
-                persistContent(localContent, updated, code, lang)
+                setLocalItems(updated); persist({ items: updated })
               }}
-            >
-              + Add item
-            </button>
+            >+ Add item</button>
           </div>
         )
 
+      case 'code':
+        return (
+          <div className="sv-code-wrap sv-fill-height">
+            <select {...ND} className="nodrag nopan sv-code-lang" value={lang}
+              onChange={e => { setLang(e.target.value); persist({ meta: { ...block.meta, content: code, lang: e.target.value } }) }}
+            >
+              {['javascript','typescript','python','html','css','json','bash','sql','rust','go'].map(l =>
+                <option key={l} value={l}>{l}</option>
+              )}
+            </select>
+            <textarea {...ND} className="nodrag nopan sv-editable-code sv-fill-height"
+              value={code} spellCheck={false} placeholder={`// ${lang}...`}
+              onChange={e => { setCode(e.target.value); persist({ meta: { ...block.meta, content: e.target.value, lang } }) }}
+            />
+          </div>
+        )
+
+      // ── Media types — URL input (free), file upload coming in Phase 3 Pro ───
       case 'image':
-        return block.meta?.url
-          ? <img src={block.meta.url} alt={block.meta.name} className="sv-node-img sv-fill-height" />
-          : (
-            <div className="sv-placeholder">
-              🖼 Image block
-              <span className="sv-placeholder-hint">Image URL stored in the note</span>
-            </div>
-          )
-
       case 'link':
-        return block.meta?.url
-          ? (
-            <a href={block.meta.url} target="_blank" rel="noopener noreferrer" className="sv-link-card">
-              🔗 {block.meta.label || block.meta.url}
-            </a>
-          )
-          : <div className="sv-placeholder">🔗 Link block — set URL in the note editor</div>
-
       case 'video':
-        return block.meta?.url
-          ? (
-            <div className="sv-placeholder">
-              🎬 <a href={block.meta.url} target="_blank" rel="noopener noreferrer">{block.meta.url}</a>
-            </div>
-          )
-          : <div className="sv-placeholder">🎬 Video block</div>
+      case 'audio': {
+        const icons: Record<string, string> = { image: '🖼', link: '🔗', video: '🎬', audio: '🎵' }
+        const placeholders: Record<string, string> = {
+          image: 'https://example.com/image.png',
+          link: 'https://example.com',
+          video: 'https://example.com/video.mp4',
+          audio: 'https://example.com/audio.mp3',
+        }
+        const labels: Record<string, string> = {
+          image: 'Add Image', link: 'Add Link', video: 'Add Video', audio: 'Add Audio',
+        }
 
-      case 'audio':
-        return block.meta?.url
-          ? <audio controls src={block.meta.url} className="sv-audio" />
-          : <div className="sv-placeholder">🎵 Audio block</div>
+        if (mediaUrlSaved && mediaUrl) return (
+          <div className="sv-media-saved sv-fill-height">
+            {block.type === 'image' && (
+              <img src={mediaUrl} alt="img" style={{ width: '100%', flex: 1, objectFit: 'contain', borderRadius: '0.375rem' }} />
+            )}
+            {block.type === 'audio' && (
+              <audio {...ND} controls src={mediaUrl} className="nodrag nopan" style={{ width: '100%' }} />
+            )}
+            {block.type === 'video' && (
+              <video {...ND} controls src={mediaUrl} className="nodrag nopan" style={{ width: '100%', borderRadius: '0.375rem' }} />
+            )}
+            {block.type === 'link' && (
+              <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="sv-link-card"
+                onClick={e => e.stopPropagation()}>
+                🔗 {mediaUrl}
+              </a>
+            )}
+            <button {...ND} className="nodrag nopan sv-media-edit"
+              onClick={() => setMediaUrlSaved(false)}
+            >✎ Change URL</button>
+          </div>
+        )
+
+        return (
+          <div className="sv-media-input">
+            <p className="sv-media-hint">{icons[block.type]} Paste a URL to add content</p>
+            <input {...ND}
+              className="nodrag nopan sv-media-url-input"
+              value={mediaUrl}
+              autoFocus
+              placeholder={placeholders[block.type]}
+              onChange={e => setMediaUrl(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && mediaUrl.trim()) {
+                  setMediaUrlSaved(true)
+                  persist({ meta: { ...block.meta, url: mediaUrl.trim() } })
+                }
+              }}
+            />
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+              <button {...ND} className="nodrag nopan sv-media-save"
+                onClick={() => {
+                  if (!mediaUrl.trim()) return
+                  setMediaUrlSaved(true)
+                  persist({ meta: { ...block.meta, url: mediaUrl.trim() } })
+                }}
+              >{labels[block.type]}</button>
+              {/* Pro upload — Phase 3 */}
+              <button {...ND} className="nodrag nopan sv-media-pro"
+                title="File upload available on Pro plan"
+                onClick={() => {}}
+              >📁 Upload 🔒</button>
+            </div>
+          </div>
+        )
+      }
 
       case 'file':
         return (
           <div className="sv-placeholder">
             📎 {block.meta?.name || 'File block'}
             {block.meta?.url && (
-              <a href={block.meta.url} target="_blank" rel="noopener noreferrer" className="sv-file-link">
+              <a href={block.meta.url} target="_blank" rel="noopener noreferrer"
+                className="sv-file-link" onClick={e => e.stopPropagation()}>
                 Download
               </a>
             )}
@@ -233,24 +269,16 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
         )
 
       case 'table':
-        return (
-          <div className="sv-placeholder">
-            ⊞ Table block
-            <span className="sv-placeholder-hint">Tables render in the note editor</span>
-          </div>
-        )
+        return <div className="sv-placeholder">⊞ Table — edit in SyncPad</div>
 
       default:
-        return <p className="sv-node-text">{getPreview()}</p>
+        return <p className="sv-node-text">{block?.content || ''}</p>
     }
   }
 
   return (
     <>
-      <NodeResizer
-        isVisible={selected}
-        minWidth={220}
-        minHeight={100}
+      <NodeResizer isVisible={selected} minWidth={240} minHeight={120}
         handleStyle={{ width: 8, height: 8, borderRadius: 2, background: 'var(--accent, #a833b9)' }}
         lineStyle={{ borderColor: 'var(--accent, #a833b9)' }}
       />
@@ -260,16 +288,25 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
         <Handle type="target" position={Position.Top} className="sv-handle sv-handle-top" />
         <Handle type="source" position={Position.Bottom} className="sv-handle sv-handle-bottom" />
 
+        {/* Header is draggable — body is not */}
         <div className="sv-node-header">
           <span className="sv-node-icon">{getIcon()}</span>
           <span className="sv-node-type">{block?.type || 'block'}</span>
-          <button className="sv-node-collapse" onClick={() => setCollapsed(c => !c)}>
+          <button className="nodrag nopan sv-node-collapse"
+            onClick={() => setCollapsed(c => !c)}>
             {collapsed ? '▶' : '▼'}
           </button>
-          <button className="sv-node-delete" onClick={() => deleteElements({ nodes: [{ id }] })} title="Delete node">✕</button>
+          <button className="nodrag nopan sv-node-delete"
+            onClick={() => deleteElements({ nodes: [{ id }] })}
+            title="Delete node">✕</button>
         </div>
 
-        {!collapsed && <div className="sv-node-body sv-node-body-fill">{renderBody()}</div>}
+        {/* nodrag on body — all children interactive */}
+        {!collapsed && (
+          <div className="nodrag nopan sv-node-body sv-node-body-fill">
+            {renderBody()}
+          </div>
+        )}
       </div>
     </>
   )

@@ -14,6 +14,7 @@ export interface SyncBoardItem {
   type: 'text' | 'link' | 'code'
   pinned: boolean
   source: 'manual' | 'electron' | 'mobile'
+  deviceName?: string  // e.g. "HP EliteBook G2", "iPhone 12" — set by Electron/RN in Phase 3
   createdAt: number
   updatedAt: number
 }
@@ -26,7 +27,7 @@ interface SyncBoardStore {
 
   startSync: (uid: string) => void
   stopSync: () => void
-  addItem: (content: string, source?: SyncBoardItem['source']) => void
+  addItem: (content: string, source?: SyncBoardItem['source'], deviceName?: string) => void
   updateItem: (id: string, updates: Partial<SyncBoardItem>) => void
   deleteItem: (id: string) => void
   deleteItems: (ids: string[]) => void
@@ -78,14 +79,15 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
         set({ _uid: null, _unsub: null })
       },
 
-      addItem: (content, source = 'manual') => {
+      addItem: (content, source = 'manual', deviceName) => {
         if (!content.trim()) return
         if (get().items.find(i => i.content === content.trim())) return
         const now = Date.now()
         const item: SyncBoardItem = {
           id: generateId(), label: '',
           content: content.trim(), type: detectType(content),
-          pinned: false, source, createdAt: now, updatedAt: now,
+          pinned: false, source, deviceName,
+          createdAt: now, updatedAt: now,
         }
         set(s => ({ items: [item, ...s.items] }))
         syncItem(get()._uid, item)

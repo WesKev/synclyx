@@ -4,6 +4,7 @@ import BlockRenderer from './BlockRenderer'
 import AtCommandMenu from './AtCommandMenu'
 import TablePopup from './TablePopup'
 import ExportModal from './ExportModal'
+import VersionHistoryModal from './VersionHistoryModal'
 import FormatToolbar from './FormatToolbar'
 import TagInput from './TagInput'
 import NoteLinkMenu from './NoteLinkMenu'
@@ -33,6 +34,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
   const [noteLinkQuery, setNoteLinkQuery] = useState('')
   const [showTablePopup, setShowTablePopup] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [zenMode, setZenMode] = useState(false)
   const [showFontPicker, setShowFontPicker] = useState(false)
   const [showNotebookPicker, setShowNotebookPicker] = useState(false)
@@ -61,7 +63,6 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     }
   }, [note?.font])
 
-  // Push to undo history
   const pushHistory = useCallback((blocks: Block[], title: string) => {
     if (skipHistoryRef.current) return
     setHistory(h => {
@@ -71,23 +72,23 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     setHistoryIdx(i => Math.min(i + 1, 49))
   }, [historyIdx])
 
-  const undo = () => {
+  const undo = useCallback(() => {
     if (historyIdx <= 0 || !note) return
     const prev = history[historyIdx - 1]
     skipHistoryRef.current = true
     updateNote(note.id, { blocks: prev.blocks, title: prev.title })
     setHistoryIdx(i => i - 1)
     setTimeout(() => { skipHistoryRef.current = false }, 50)
-  }
+  }, [historyIdx, history, note, updateNote])
 
-  const redo = () => {
+  const redo = useCallback(() => {
     if (historyIdx >= history.length - 1 || !note) return
     const next = history[historyIdx + 1]
     skipHistoryRef.current = true
     updateNote(note.id, { blocks: next.blocks, title: next.title })
     setHistoryIdx(i => i + 1)
     setTimeout(() => { skipHistoryRef.current = false }, 50)
-  }
+  }, [historyIdx, history, note, updateNote])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -104,8 +105,8 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
   if (!note) return (
     <div className="editor-empty">
       <div className="editor-empty-inner">
-        <span className="editor-empty-icon">📋</span>
-        <p>Select a note or create a new one</p>
+        <span className="editor-empty-icon">✦</span>
+        <p>Select a note or create one</p>
         <span className="editor-empty-hint">Press Ctrl+N for a new note</span>
       </div>
     </div>
@@ -121,38 +122,31 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     const cursor = e.target.selectionStart ?? value.length
     const textBeforeCursor = value.slice(0, cursor)
 
-    // @ detection — show menu when @ is typed, close only on space or Escape
     const atIndex = textBeforeCursor.lastIndexOf('@')
     const afterAt = atIndex !== -1 ? textBeforeCursor.slice(atIndex + 1) : ''
-    // Only show @ menu when @ was just typed (atIndex is near cursor) and query is letters only
     const atIsActive = atIndex !== -1 &&
       /^[a-zA-Z]*$/.test(afterAt) &&
       afterAt.length < 20 &&
-      !afterAt.includes(' ') &&
-      !afterAt.includes('\n')
+      !afterAt.includes(' ') && !afterAt.includes('\n')
 
-    // [[ detection — only after full [[ sequence
     const doubleBracketIndex = textBeforeCursor.lastIndexOf('[[')
     const afterBracket = doubleBracketIndex !== -1 ? textBeforeCursor.slice(doubleBracketIndex + 2) : ''
-    const bracketIsActive = doubleBracketIndex !== -1 && !afterBracket.includes('[[') && !afterBracket.includes(' ') && !afterBracket.includes('\n') && afterBracket.length < 30
+    const bracketIsActive = doubleBracketIndex !== -1 &&
+      !afterBracket.includes('[[') && !afterBracket.includes(' ') &&
+      !afterBracket.includes('\n') && afterBracket.length < 30
 
     if (atIsActive) {
       const rect = e.target.getBoundingClientRect()
       setAtMenuPos({ x: rect.left + 16, y: rect.bottom })
-      setShowAtMenu(true)
-      setShowNoteLink(false)
-      setAtQuery(afterAt)
-      setActiveBlockId(blockId)
+      setShowAtMenu(true); setShowNoteLink(false)
+      setAtQuery(afterAt); setActiveBlockId(blockId)
     } else if (bracketIsActive) {
       const rect = e.target.getBoundingClientRect()
       setNoteLinkPos({ x: rect.left + 16, y: rect.bottom })
-      setShowNoteLink(true)
-      setShowAtMenu(false)
-      setNoteLinkQuery(afterBracket)
-      setActiveBlockId(blockId)
+      setShowNoteLink(true); setShowAtMenu(false)
+      setNoteLinkQuery(afterBracket); setActiveBlockId(blockId)
     } else {
-      setShowAtMenu(false)
-      setShowNoteLink(false)
+      setShowAtMenu(false); setShowNoteLink(false)
     }
     updateBlockContent(blockId, value)
   }
@@ -161,18 +155,13 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     const value = (e.target as HTMLTextAreaElement).value
     const target = e.target as HTMLTextAreaElement
 
-    // Detect @ key press immediately — show menu before onChange fires
     if (e.key === '@') {
       const rect = target.getBoundingClientRect()
       setAtMenuPos({ x: rect.left + 16, y: rect.bottom })
-      setShowAtMenu(true)
-      setAtQuery('')
-      setActiveBlockId(blockId)
+      setShowAtMenu(true); setAtQuery(''); setActiveBlockId(blockId)
     }
-
-    // Close @ menu on space or escape
     if (showAtMenu) {
-      if (e.key === 'Escape' || e.key === ' ') { setShowAtMenu(false) }
+      if (e.key === 'Escape' || e.key === ' ') setShowAtMenu(false)
       if (e.key === 'Enter') { e.preventDefault(); return }
     }
     if (e.key === 'Enter' && !e.shiftKey && !showAtMenu) {
@@ -227,8 +216,6 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     } else {
       blocks.push(newBlock)
     }
-    // Always add a text block after any block inserted via @ command
-    // This gives a natural writing flow — block appears, then empty text area below it
     if (type !== 'heading') {
       const follower: Block = { id: generateId(), type: 'text', content: '', createdAt: Date.now() }
       const insertIdx = blocks.findIndex(b => b.id === newBlock.id)
@@ -244,15 +231,31 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     pushHistory(updated, note.title)
   }
 
+  // ── Fixed handleAtSelect ────────────────────────────────────────────────────
+  // Uses a single updateNote call to avoid the stale-closure double-write bug
+  // that was causing blocks to not appear after selection.
   const handleAtSelect = (type: BlockType) => {
     setShowAtMenu(false)
-    const block = note.blocks.find(b => b.id === activeBlockId)
-    if (block) {
-      const atIndex = block.content.lastIndexOf('@')
-      updateBlockContent(activeBlockId, atIndex !== -1 ? block.content.slice(0, atIndex) : block.content)
+
+    // Always read fresh state from the store, not the closure's `note`
+    const freshNote = useNotesStore.getState().notes.find(n => n.id === activeNoteId)
+    if (!freshNote) return
+
+    // Strip the @query text from the active block
+    let blocks = freshNote.blocks.map(b => {
+      if (b.id !== activeBlockId) return b
+      const atIndex = b.content.lastIndexOf('@')
+      return { ...b, content: atIndex !== -1 ? b.content.slice(0, atIndex) : b.content }
+    })
+
+    // Handle special cases that need different flows
+    if (type === 'table') {
+      updateNote(freshNote.id, { blocks })
+      setShowTablePopup(true)
+      return
     }
-    if (type === 'table') { setShowTablePopup(true); return }
-    if (['image','file','audio','video'].includes(type)) {
+
+    if (['image', 'file', 'audio', 'video'].includes(type)) {
       const input = document.createElement('input')
       input.type = 'file'
       if (type === 'image') input.accept = 'image/*'
@@ -261,11 +264,48 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       input.onchange = (e) => {
         const file = (e.target as HTMLInputElement).files?.[0]
         if (!file) return
-        addBlock(type, activeBlockId, { url: URL.createObjectURL(file), name: file.name, size: String(file.size) })
+        const meta = { url: URL.createObjectURL(file), name: file.name, size: String(file.size) }
+        // Re-read fresh state again since file picker is async
+        const latestNote = useNotesStore.getState().notes.find(n => n.id === activeNoteId)
+        if (!latestNote) return
+        let latestBlocks = [...latestNote.blocks]
+        const newBlock: Block = { id: generateId(), type, content: '', meta, createdAt: Date.now() }
+        const follower: Block = { id: generateId(), type: 'text', content: '', createdAt: Date.now() }
+        const idx = latestBlocks.findIndex(b => b.id === activeBlockId)
+        if (idx !== -1) {
+          latestBlocks.splice(idx + 1, 0, newBlock, follower)
+        } else {
+          latestBlocks.push(newBlock, follower)
+        }
+        updateNote(latestNote.id, { blocks: latestBlocks })
       }
-      input.click(); return
+      updateNote(freshNote.id, { blocks })
+      input.click()
+      return
     }
-    addBlock(type, activeBlockId)
+
+    // Build new block inline, then call updateNote ONCE with everything
+    const newBlock: Block = {
+      id: generateId(), type, content: '',
+      items: type === 'checklist' ? [{ id: generateId(), text: '', checked: false }] : undefined,
+      createdAt: Date.now(),
+    }
+    const follower: Block = { id: generateId(), type: 'text', content: '', createdAt: Date.now() }
+
+    const activeIdx = blocks.findIndex(b => b.id === activeBlockId)
+    if (activeIdx !== -1) {
+      if (type !== 'heading') {
+        blocks.splice(activeIdx + 1, 0, newBlock, follower)
+      } else {
+        blocks.splice(activeIdx + 1, 0, newBlock)
+      }
+    } else {
+      blocks.push(newBlock)
+      if (type !== 'heading') blocks.push(follower)
+    }
+
+    updateNote(freshNote.id, { blocks })
+    pushHistory(blocks, freshNote.title)
   }
 
   return (
@@ -286,23 +326,17 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
             <div className="font-picker-wrap">
               <button className="toolbar-btn" onClick={() => setShowNotebookPicker(p => !p)} title="Add to notebook">📁</button>
               {showNotebookPicker && (
-                <NotebookPicker
-                  noteId={note.id}
-                  currentNotebookId={note.notebookId}
-                  onClose={() => setShowNotebookPicker(false)}
-                />
+                <NotebookPicker noteId={note.id} currentNotebookId={note.notebookId} onClose={() => setShowNotebookPicker(false)} />
               )}
             </div>
             <button
               className={`toolbar-btn ${lockedItems[note.id] ? 'active' : ''}`}
               onClick={() => setShowLockSetup(true)}
-              title={lockedItems[note.id] ? 'Locked — click to manage' : 'Lock note'}>
+              title={lockedItems[note.id] ? 'Locked' : 'Lock note'}>
               {lockedItems[note.id] ? '🔒' : '🔓'}
             </button>
             <button className="toolbar-btn" title="Move to trash"
-              onClick={() => { if (confirm('Move to trash?')) moveToTrash(note.id, 'note') }}>
-              🗑
-            </button>
+              onClick={() => { if (confirm('Move to trash?')) moveToTrash(note.id, 'note') }}>🗑</button>
             <div className="font-picker-wrap">
               <button className="toolbar-btn" onClick={() => setShowFontPicker(f => !f)} title="Font">Aa</button>
               {showFontPicker && (
@@ -316,8 +350,10 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
                 </div>
               )}
             </div>
-            <button className="toolbar-btn" onClick={() => setShowExportModal(true)} title="View version history">🕐</button>
+            {/* 🕐 opens Version History — NOT export */}
+            <button className="toolbar-btn" onClick={() => setShowVersionHistory(true)} title="Version history">🕐</button>
             <button className={`toolbar-btn ${zenMode ? 'active' : ''}`} onClick={() => setZenMode(z => !z)} title="Zen mode">◎</button>
+            {/* Export button — separate from version history */}
             <button className="toolbar-btn export-btn" onClick={() => setShowExportModal(true)}>↑ Export</button>
           </div>
         </div>
@@ -355,17 +391,14 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       {showAtMenu && <AtCommandMenu query={atQuery} position={atMenuPos} onSelect={handleAtSelect} onClose={() => setShowAtMenu(false)} />}
       {showNoteLink && (
         <NoteLinkMenu
-          query={noteLinkQuery}
-          position={noteLinkPos}
+          query={noteLinkQuery} position={noteLinkPos}
           onSelect={(noteId, noteTitle) => {
             setShowNoteLink(false)
             const block = note.blocks.find(b => b.id === activeBlockId)
             if (block) {
-              const textBeforeCursor = block.content
-              const bracketIdx = textBeforeCursor.lastIndexOf('[[')
-              const cleaned = textBeforeCursor.slice(0, bracketIdx)
+              const bracketIdx = block.content.lastIndexOf('[[')
+              const cleaned = block.content.slice(0, bracketIdx)
               updateBlockContent(activeBlockId, cleaned + `[[${noteTitle}]]`)
-              // Add to linkedNotes
               if (!note.linkedNotes.includes(noteId)) {
                 updateNote(note.id, { linkedNotes: [...note.linkedNotes, noteId] })
               }
@@ -374,19 +407,18 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
           onClose={() => setShowNoteLink(false)}
         />
       )}
-      {showTablePopup && <TablePopup onConfirm={(r,c) => { setShowTablePopup(false); addBlock('table', activeBlockId, { rows: String(r), cols: String(c) }) }} onClose={() => setShowTablePopup(false)} />}
-      {showExportModal && <ExportModal note={note} onClose={() => setShowExportModal(false)} />}
-      {showLockSetup && (
-        <LockSetup itemId={note.id} itemTitle={note.title} onClose={() => setShowLockSetup(false)} />
+      {showTablePopup && (
+        <TablePopup
+          onConfirm={(r, c) => { setShowTablePopup(false); addBlock('table', activeBlockId, { rows: String(r), cols: String(c) }) }}
+          onClose={() => setShowTablePopup(false)}
+        />
       )}
+      {showExportModal && <ExportModal note={note} onClose={() => setShowExportModal(false)} />}
+      {showVersionHistory && <VersionHistoryModal note={note} onClose={() => setShowVersionHistory(false)} />}
+      {showLockSetup && <LockSetup itemId={note.id} itemTitle={note.title} onClose={() => setShowLockSetup(false)} />}
       {isLocked && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', backdropFilter: 'blur(4px)' }}>
-          <UnlockPrompt
-            itemId={note.id}
-            itemTitle={note.title}
-            onSuccess={() => setUnlocked(true)}
-            onCancel={() => setUnlocked(false)}
-          />
+          <UnlockPrompt itemId={note.id} itemTitle={note.title} onSuccess={() => setUnlocked(true)} onCancel={() => setUnlocked(false)} />
         </div>
       )}
     </div>

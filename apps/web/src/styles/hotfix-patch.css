@@ -1,0 +1,107 @@
+/* ─── Inline clip naming ───────────────────────────────────────────────────── */
+.sb-name-row {
+  margin-bottom: 0.25rem;
+}
+
+.sb-name-trigger {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: var(--font-sans);
+}
+
+.sb-name-trigger:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  border-style: solid;
+}
+
+.sb-name-trigger.has-name {
+  color: var(--accent);
+  border-style: solid;
+  border-color: var(--accent-dim);
+  background: var(--accent-dim);
+  font-weight: 600;
+}
+
+.sb-name-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sb-name-input {
+  flex: 1;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.5rem;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+}
+
+.sb-name-input:focus { outline: none; }
+
+.sb-name-save,
+.sb-name-cancel {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+}
+
+.sb-name-save { background: var(--accent); color: #fff; }
+.sb-name-save:hover { filter: brightness(1.1); }
+.sb-name-cancel { background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border); }
+.sb-name-cancel:hover { color: #ff6b6b; border-color: #ff6b6b; }
+
+/* ─── SyncVerse list input — fix transparent text ──────────────────────────── */
+/* Override hardcoded color — use CSS variable so it works on both themes */
+.sv-list-item-input {
+  color: var(--text, #1a1a1a) !important;
+}
+
+/* SyncVerse nodes inside dark canvas specifically */
+[data-sv-theme="dark"] .sv-list-item-input {
+  color: #f1eded !important;
+}
+
+[data-sv-theme="light"] .sv-list-item-input {
+  color: #1a1a1a !important;
+}
+
+/* ─── Pro upload button in SyncVerse nodes ─────────────────────────────────── */
+.sv-media-pro {
+  font-size: 0.7rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm, 0.375rem);
+  border: 1px solid rgba(168, 51, 185, 0.3);
+  background: transparent;
+  color: rgba(168, 51, 185, 0.6);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.sv-media-pro:hover {
+  border-color: #a833b9;
+  color: #a833b9;
+}
+
+/* ─── SyncVerse media saved state ──────────────────────────────────────────── */
+.sv-media-saved {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+}

@@ -21,6 +21,8 @@ import './styles/blocks.css'
 import './styles/popups.css'
 import './styles/syncverse.css'
 import './styles/codemirror.css'
+import './styles/session-a-patch.css'
+import './styles/hotfix-patch.css'
 
 export type AppView = 'notes' | 'syncverse' | 'syncboard'
 
@@ -35,13 +37,11 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
 
-  // Firebase auth listener
   useEffect(() => {
     const unsubscribe = initAuthListener()
     return unsubscribe
   }, [initAuthListener])
 
-  // Start/stop Firestore sync when auth state changes
   useEffect(() => {
     if (user) {
       startSync(user.uid)
@@ -79,12 +79,12 @@ export default function App() {
     <div className="app-shell">
       <FloatingFormat />
 
-      {/* Vertical view switcher — left rail */}
+      {/* Left vertical rail — view switcher */}
       <div className="view-switcher">
         <button
           className={`view-btn ${view === 'notes' ? 'active' : ''}`}
           onClick={() => setView('notes')}
-          title="Notes"
+          title="SyncPad"
         >📝</button>
 
         <button
@@ -99,16 +99,16 @@ export default function App() {
           title="SyncBoard"
         >📋</button>
 
-        {/* Pushes auth button to bottom */}
+        {/* Spacer — pushes auth to bottom */}
         <div style={{ flex: 1 }} />
 
-        {/* Auth: cloud icon → sign in modal, initial letter → account page */}
+        {/* Auth — cloud = sign in, initial letter = account page */}
         {!loading && (
           user ? (
             <button
               className="view-btn auth-user-btn"
               onClick={() => setAccountOpen(true)}
-              title={`Account — ${user.email}`}
+              title={`Account · ${user.email}`}
             >
               {user.displayName?.[0]?.toUpperCase() ?? '👤'}
             </button>
@@ -122,7 +122,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Views */}
+      {/* SyncPad */}
       {view === 'notes' && (
         <>
           <Sidebar onSwitchToSyncVerse={() => setView('syncverse')} />
@@ -133,6 +133,7 @@ export default function App() {
         </>
       )}
 
+      {/* SyncVerse */}
       {view === 'syncverse' && (
         <div className="syncverse-view-root" data-sv-theme={svTheme} style={{ display: 'flex', width: '100%' }}>
           <SyncVerseSidebar />
@@ -144,7 +145,7 @@ export default function App() {
                   <div className="editor-empty-inner">
                     <span className="editor-empty-icon">🌐</span>
                     <p>Select a canvas or create one</p>
-                    <span className="editor-empty-hint">Press + to start a new SyncVerse canvas</span>
+                    <span className="editor-empty-hint">Press + in the bottom rail to start</span>
                   </div>
                 </div>
               )
@@ -154,13 +155,13 @@ export default function App() {
         </div>
       )}
 
+      {/* SyncBoard */}
       {view === 'syncboard' && (
         <main className="app-main">
           <SyncBoard />
         </main>
       )}
 
-      {/* Modals */}
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
       <AccountModal isOpen={accountOpen} onClose={() => setAccountOpen(false)} />
     </div>
