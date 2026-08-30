@@ -1,10 +1,12 @@
-import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { initializeApp, type FirebaseApp } from 'firebase/app'
+import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth'
 import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  type Firestore,
 } from 'firebase/firestore'
+import { getStorage, type FirebaseStorage } from 'firebase/storage'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -15,15 +17,16 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
-export const app = initializeApp(firebaseConfig)
-export const auth = getAuth(app)
+export const app: FirebaseApp = initializeApp(firebaseConfig)
+export const auth: Auth = getAuth(app)
 
-// persistentLocalCache = offline-first. Works even when no internet.
-// persistentMultipleTabManager = multiple open browser tabs stay in sync.
-export const db = initializeFirestore(app, {
+export const db: Firestore = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager(),
   }),
 })
 
 export const googleProvider = new GoogleAuthProvider()
+
+// Firebase Storage — enable in Firebase Console → Build → Storage → Get started
+export const storage: FirebaseStorage = getStorage(app)

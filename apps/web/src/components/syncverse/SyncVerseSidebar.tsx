@@ -3,6 +3,7 @@ import { useNotesStore } from '../../store/notesStore'
 import { useSyncVerseThemeStore } from '../../store/syncVerseThemeStore'
 import { LockSetup, UnlockPrompt } from '../shared/PasswordLock'
 import TrashView from '../shared/TrashView'
+import CanvasVersionModal from './CanvasVersionModal'
 
 export default function SyncVerseSidebar() {
   const {
@@ -24,12 +25,15 @@ export default function SyncVerseSidebar() {
   const [editVal, setEditVal] = useState('')
   const [showTrash, setShowTrash] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [versionCanvasId, setVersionCanvasId] = useState<string | null>(null)
 
   const formatDate = (ts: number) => new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
   const filteredCanvases = selectedNotebook
     ? canvases.filter(c => c.notebookId === selectedNotebook)
     : canvases
+
+  const versionCanvas = versionCanvasId ? canvases.find(c => c.id === versionCanvasId) : null
 
   if (collapsed) {
     return (
@@ -62,7 +66,6 @@ export default function SyncVerseSidebar() {
           </div>
         </div>
 
-        {/* Notebooks section */}
         <div className="sv-notebooks-wrap">
           <button className="sv-notebooks-toggle" onClick={() => setShowNotebooks(s => !s)}>
             📁 Notebooks {showNotebooks ? '▲' : '▼'}
@@ -118,18 +121,29 @@ export default function SyncVerseSidebar() {
           {filteredCanvases.map(canvas => {
             const isLocked = !!lockedItems[canvas.id] && !unlockedCanvases.has(canvas.id)
             const nb = notebooks.find(n => n.id === canvas.notebookId)
+            const hasVersions = (canvas.versions || []).length > 0
+            const isActive = activeCanvasId === canvas.id
+
             return (
               <div key={canvas.id}
-                className={`note-item ${activeCanvasId === canvas.id ? 'active' : ''}`}
+                className={`note-item ${isActive ? 'active' : ''}`}
                 onClick={() => {
-                  if (isLocked) { setUnlockingCanvas(canvas.id) }
-                  else { setActiveCanvas(canvas.id) }
+                  if (isLocked) setUnlockingCanvas(canvas.id)
+                  else setActiveCanvas(canvas.id)
                 }}>
                 <div className="note-item-top">
                   <span className="note-item-title">
                     {isLocked && '🔒 '}{canvas.name}
                   </span>
                   <div className="note-item-actions">
+                    {/* Version history — only show if canvas has saved versions */}
+                    {hasVersions && (
+                      <button
+                        className="note-pin-btn sv-version-btn"
+                        title={`Version history (${canvas.versions!.length})`}
+                        onClick={e => { e.stopPropagation(); setVersionCanvasId(canvas.id) }}
+                      >🕐</button>
+                    )}
                     <select className="sv-nb-select"
                       value={canvas.notebookId || ''}
                       onClick={e => e.stopPropagation()}
@@ -151,6 +165,11 @@ export default function SyncVerseSidebar() {
                 <div className="note-item-meta">
                   <span className="note-date">{formatDate(canvas.updatedAt)}</span>
                   <span className="note-date">{canvas.nodes.length} nodes · {(canvas.edges || []).length} connections</span>
+                  {hasVersions && (
+                    <span className="note-date sv-version-badge">
+                      {canvas.versions!.length} version{canvas.versions!.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
                   {nb && <span className="note-notebook-badge" style={{ background: nb.color + '30', color: nb.color }}>📁 {nb.name}</span>}
                 </div>
               </div>
@@ -160,25 +179,27 @@ export default function SyncVerseSidebar() {
       </aside>
 
       {lockingCanvas && (
-        <LockSetup
-          itemId={lockingCanvas}
+        <LockSetup itemId={lockingCanvas}
           itemTitle={canvases.find(c => c.id === lockingCanvas)?.name || 'Canvas'}
-          onClose={() => setLockingCanvas(null)}
-        />
+          onClose={() => setLockingCanvas(null)} />
       )}
       {unlockingCanvas && (
-        <UnlockPrompt
-          itemId={unlockingCanvas}
+        <UnlockPrompt itemId={unlockingCanvas}
           itemTitle={canvases.find(c => c.id === unlockingCanvas)?.name || 'Canvas'}
           onSuccess={() => {
             setUnlockedCanvases(s => new Set([...s, unlockingCanvas!]))
             setActiveCanvas(unlockingCanvas)
             setUnlockingCanvas(null)
           }}
-          onCancel={() => setUnlockingCanvas(null)}
-        />
+          onCancel={() => setUnlockingCanvas(null)} />
       )}
       {showTrash && <TrashView onClose={() => setShowTrash(false)} />}
+      {versionCanvas && (
+        <CanvasVersionModal
+          canvas={versionCanvas}
+          onClose={() => setVersionCanvasId(null)}
+        />
+      )}
     </>
   )
 }

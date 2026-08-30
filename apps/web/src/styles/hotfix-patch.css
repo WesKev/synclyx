@@ -1,107 +1,205 @@
-/* ─── Inline clip naming ───────────────────────────────────────────────────── */
-.sb-name-row {
+/* ─── SyncVerse node inputs — light mode safe colors ──────────────────────── */
+/* Use CSS variables everywhere instead of hardcoded colors */
+
+.sv-media-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);  /* ← was hardcoded, now theme-aware */
   margin-bottom: 0.25rem;
 }
 
-.sb-name-trigger {
-  font-size: 0.75rem;
-  color: var(--text-faint);
+.sv-media-url-input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.4rem 0.6rem;
+  color: var(--text);         /* ← was hardcoded #f1eded */
+  font-size: 0.8rem;
+  font-family: inherit;
+  width: 100%;
+  transition: border-color 0.15s ease;
+}
+
+.sv-media-url-input::placeholder { color: var(--text-faint); }
+.sv-media-url-input:focus { outline: none; border-color: var(--accent, #a833b9); }
+
+.sv-media-save {
+  font-size: 0.75rem; font-weight: 600; color: #fff;
+  background: var(--accent, #a833b9); border: none;
+  border-radius: 0.375rem; padding: 0.35rem 0.75rem;
+  cursor: pointer; transition: filter 0.15s ease; align-self: flex-start;
+}
+.sv-media-save:hover { filter: brightness(1.1); }
+
+.sv-media-edit {
+  font-size: 0.7rem; color: var(--text-faint);
+  background: transparent; border: none; cursor: pointer;
+  padding: 0.15rem 0; transition: color 0.15s ease; align-self: flex-start;
+}
+.sv-media-edit:hover { color: var(--accent, #a833b9); }
+
+.sv-media-pro {
+  font-size: 0.7rem; padding: 0.3rem 0.6rem; border-radius: 0.375rem;
+  border: 1px solid rgba(168, 51, 185, 0.3); background: transparent;
+  color: rgba(168, 51, 185, 0.6); cursor: pointer; font-family: inherit;
+  transition: all 0.15s ease; white-space: nowrap;
+}
+.sv-media-pro:hover { border-color: #a833b9; color: #a833b9; }
+
+.sv-media-saved {
+  display: flex; flex-direction: column; gap: 0.5rem; height: 100%;
+}
+
+/* ─── SyncVerse list node — theme-aware text color ─────────────────────────── */
+.sv-list-item-input {
+  color: var(--text) !important;
   background: transparent;
+}
+
+/* SyncVerse dark canvas override */
+[data-sv-theme="dark"] .sv-list-item-input { color: #f1eded !important; }
+[data-sv-theme="light"] .sv-list-item-input { color: #1a1a1a !important; }
+
+/* ─── SyncVerse node text — general fix for all inputs in nodes ─────────────── */
+[data-sv-theme="light"] .sv-node input,
+[data-sv-theme="light"] .sv-node textarea,
+[data-sv-theme="light"] .sv-node select {
+  color: #1a1a1a;
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-sv-theme="light"] .sv-editable-text,
+[data-sv-theme="light"] .sv-editable-heading,
+[data-sv-theme="light"] .sv-editable-code {
+  color: #1a1a1a;
+}
+
+[data-sv-theme="light"] .sv-check-text {
+  color: #1a1a1a !important;
+}
+
+[data-sv-theme="light"] .sv-list-type-btn {
+  color: #444;
+  border-color: rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.04);
+}
+
+[data-sv-theme="light"] .sv-list-type-btn.active {
+  color: #a833b9;
+  border-color: #a833b9;
+  background: rgba(168,51,185,0.08);
+}
+
+[data-sv-theme="light"] .sv-media-hint { color: #555; }
+
+/* ─── CORS / broken image error state ──────────────────────────────────────── */
+.sv-img-error {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 0.5rem; padding: 1rem;
+  text-align: center; height: 100%;
+  background: var(--bg-elevated); border-radius: 0.5rem;
   border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.2rem 0.6rem;
-  cursor: pointer;
-  transition: all var(--transition);
-  font-family: var(--font-sans);
 }
 
-.sb-name-trigger:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-  border-style: solid;
+.sv-img-error span:first-child { font-size: 1.5rem; color: var(--text-muted); }
+
+.sv-img-error-hint {
+  font-size: 0.75rem; color: var(--text-faint); line-height: 1.4; max-width: 16rem;
 }
 
+.sv-img-error-link {
+  font-size: 0.8rem; color: var(--accent); text-decoration: none;
+  border: 1px solid var(--accent); border-radius: 0.375rem;
+  padding: 0.3rem 0.75rem; transition: all 0.15s ease;
+}
+.sv-img-error-link:hover { background: var(--accent); color: #fff; }
+
+/* ─── Table preview in SyncVerse ────────────────────────────────────────────── */
+.sv-table-preview {
+  display: flex; flex-direction: column; gap: 0.5rem; height: 100%; overflow: hidden;
+}
+
+.sv-table-scroll {
+  flex: 1; overflow: auto; border-radius: 0.375rem;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+}
+
+.sv-table-readonly {
+  width: 100%; border-collapse: collapse; font-size: 0.75rem;
+}
+
+.sv-table-cell {
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  padding: 0.25rem 0.4rem;
+  color: var(--text, #f1eded);
+  white-space: nowrap; max-width: 8rem;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+[data-sv-theme="light"] .sv-table-cell { color: #1a1a1a; border-color: rgba(0,0,0,0.12); }
+
+.sv-table-empty {
+  font-size: 0.8rem; color: var(--text-faint, rgba(241,237,237,0.4));
+  text-align: center; padding: 1rem 0;
+}
+
+.sv-open-syncpad {
+  font-size: 0.75rem; font-weight: 600; color: var(--accent, #a833b9);
+  background: transparent; border: 1px solid var(--accent, #a833b9);
+  border-radius: 0.375rem; padding: 0.3rem 0.75rem;
+  cursor: pointer; transition: all 0.15s ease; align-self: flex-start;
+}
+.sv-open-syncpad:hover { background: var(--accent, #a833b9); color: #fff; }
+
+/* ─── SyncBoard inline naming ───────────────────────────────────────────────── */
+.sb-name-row { margin-bottom: 0.25rem; }
+
+.sb-name-trigger {
+  font-size: 0.75rem; color: var(--text-faint);
+  background: transparent; border: 1px dashed var(--border);
+  border-radius: var(--radius-sm); padding: 0.2rem 0.6rem;
+  cursor: pointer; transition: all var(--transition); font-family: var(--font-sans);
+}
+.sb-name-trigger:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
 .sb-name-trigger.has-name {
-  color: var(--accent);
-  border-style: solid;
-  border-color: var(--accent-dim);
-  background: var(--accent-dim);
-  font-weight: 600;
+  color: var(--accent); border-style: solid; border-color: var(--accent-dim);
+  background: var(--accent-dim); font-weight: 600;
 }
 
-.sb-name-edit {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
+.sb-name-edit { display: flex; align-items: center; gap: 0.35rem; }
 
 .sb-name-input {
-  flex: 1;
-  background: var(--bg-elevated);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  padding: 0.25rem 0.5rem;
-  color: var(--text);
-  font-size: 0.8125rem;
-  font-family: var(--font-sans);
+  flex: 1; background: var(--bg-elevated); border: 1px solid var(--accent);
+  border-radius: var(--radius-sm); padding: 0.25rem 0.5rem;
+  color: var(--text); font-size: 0.8125rem; font-family: var(--font-sans);
 }
-
 .sb-name-input:focus { outline: none; }
 
-.sb-name-save,
-.sb-name-cancel {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.4rem;
-  border-radius: var(--radius-sm);
-  border: none;
-  cursor: pointer;
-  font-family: var(--font-sans);
-  transition: all var(--transition);
+.sb-name-save, .sb-name-cancel {
+  font-size: 0.75rem; padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-sm); border: none;
+  cursor: pointer; font-family: var(--font-sans); transition: all var(--transition);
 }
-
 .sb-name-save { background: var(--accent); color: #fff; }
 .sb-name-save:hover { filter: brightness(1.1); }
 .sb-name-cancel { background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border); }
 .sb-name-cancel:hover { color: #ff6b6b; border-color: #ff6b6b; }
 
-/* ─── SyncVerse list input — fix transparent text ──────────────────────────── */
-/* Override hardcoded color — use CSS variable so it works on both themes */
-.sv-list-item-input {
-  color: var(--text, #1a1a1a) !important;
+/* ─── SyncBoard select options bar ─────────────────────────────────────────── */
+.sb-select-options {
+  display: flex; gap: 0.4rem; flex-wrap: wrap;
+  margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border);
 }
 
-/* SyncVerse nodes inside dark canvas specifically */
-[data-sv-theme="dark"] .sv-list-item-input {
-  color: #f1eded !important;
+/* ─── Ensure view switcher adapts to theme ──────────────────────────────────── */
+.view-switcher {
+  background: var(--bg-surface);
+  border-right-color: var(--border);
 }
 
-[data-sv-theme="light"] .sv-list-item-input {
-  color: #1a1a1a !important;
-}
-
-/* ─── Pro upload button in SyncVerse nodes ─────────────────────────────────── */
-.sv-media-pro {
-  font-size: 0.7rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: var(--radius-sm, 0.375rem);
-  border: 1px solid rgba(168, 51, 185, 0.3);
+.view-btn {
+  color: var(--text-muted);
   background: transparent;
-  color: rgba(168, 51, 185, 0.6);
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s ease;
-  white-space: nowrap;
 }
-
-.sv-media-pro:hover {
-  border-color: #a833b9;
-  color: #a833b9;
-}
-
-/* ─── SyncVerse media saved state ──────────────────────────────────────────── */
-.sv-media-saved {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  height: 100%;
-}
+.view-btn:hover { background: var(--bg-hover); color: var(--text); }
+.view-btn.active { background: var(--accent-dim); color: var(--accent); }

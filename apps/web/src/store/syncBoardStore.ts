@@ -14,7 +14,7 @@ export interface SyncBoardItem {
   type: 'text' | 'link' | 'code'
   pinned: boolean
   source: 'manual' | 'electron' | 'mobile'
-  deviceName?: string  // e.g. "HP EliteBook G2", "iPhone 12" — set by Electron/RN in Phase 3
+  deviceName?: string
   createdAt: number
   updatedAt: number
 }
@@ -24,7 +24,6 @@ interface SyncBoardStore {
   searchQuery: string
   _uid: string | null
   _unsub: Unsubscribe | null
-
   startSync: (uid: string) => void
   stopSync: () => void
   addItem: (content: string, source?: SyncBoardItem['source'], deviceName?: string) => void
@@ -37,6 +36,10 @@ interface SyncBoardStore {
 }
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
+const BOARD_SYNC_DELAY = 2000  // 2s — SyncBoard needs fastest sync
+
+// Module-level debounce timers
+const _boardTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 
 function detectType(content: string): SyncBoardItem['type'] {
   if (/^https?:\/\//i.test(content.trim())) return 'link'
@@ -45,20 +48,30 @@ function detectType(content: string): SyncBoardItem['type'] {
 }
 
 const userCol = (uid: string) => collection(db, 'users', uid, 'syncboard')
-const userDoc = (uid: string, id: string) => doc(db, 'users', uid, 'syncboard', id)
+const userDocRef = (uid: string, id: string) => doc(db, 'users', uid, 'syncboard', id)
 
-async function syncItem(uid: string | null, item: SyncBoardItem) {
-  if (!uid) return
-  await setDoc(userDoc(uid, item.id), { ...item, _updatedAt: serverTimestamp() })
+function scheduleBoardSave(uid: string, item: SyncBoardItem) {
+  if (_boardTimers[item.id]) clearTimeout(_boardTimers[item.id])
+  _boardTimers[item.id] = setTimeout(() => {
+    setDoc(userDocRef(uid, item.id), { ...item, _updatedAt: serverTimestamp() })
+    delete _boardTimers[item.id]
+  }, BOARD_SYNC_DELAY)
+}
+
+/** Flush all pending SyncBoard saves immediately */
+export function flushAllPendingBoardItems(uid: string, items: SyncBoardItem[]) {
+  Object.keys(_boardTimers).forEach(itemId => {
+    clearTimeout(_boardTimers[itemId])
+    delete _boardTimers[itemId]
+    const item = items.find(i => i.id === itemId)
+    if (item) setDoc(userDocRef(uid, item.id), { ...item, _updatedAt: serverTimestamp() })
+  })
 }
 
 export const useSyncBoardStore = create<SyncBoardStore>()(
   persist(
     (set, get) => ({
-      items: [],
-      searchQuery: '',
-      _uid: null,
-      _unsub: null,
+      items: [], searchQuery: '', _uid: null, _unsub: null,
 
       startSync: (uid) => {
         get()._unsub?.()
@@ -74,10 +87,7 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
         set({ _uid: uid, _unsub: unsub })
       },
 
-      stopSync: () => {
-        get()._unsub?.()
-        set({ _uid: null, _unsub: null })
-      },
+      stopSync: () => { get()._unsub?.(); set({ _uid: null, _unsub: null }) },
 
       addItem: (content, source = 'manual', deviceName) => {
         if (!content.trim()) return
@@ -90,21 +100,24 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
           createdAt: now, updatedAt: now,
         }
         set(s => ({ items: [item, ...s.items] }))
-        syncItem(get()._uid, item)
+        // New items save immediately — no delay
+        const uid = get()._uid
+        if (uid) setDoc(userDocRef(uid, item.id), { ...item, _updatedAt: serverTimestamp() })
       },
 
       updateItem: (id, updates) => {
-        set(s => ({
-          items: s.items.map(i => i.id === id ? { ...i, ...updates, updatedAt: Date.now() } : i)
-        }))
-        const item = get().items.find(i => i.id === id)
-        if (item) syncItem(get()._uid, item)
+        set(s => ({ items: s.items.map(i => i.id === id ? { ...i, ...updates, updatedAt: Date.now() } : i) }))
+        const uid = get()._uid
+        if (uid) {
+          const item = get().items.find(i => i.id === id)
+          // Debounced: 2s after last change
+          if (item) scheduleBoardSave(uid, item)
+        }
       },
 
       deleteItem: (id) => {
         set(s => ({ items: s.items.filter(i => i.id !== id) }))
-        const uid = get()._uid
-        if (uid) deleteDoc(userDoc(uid, id))
+        const uid = get()._uid; if (uid) deleteDoc(userDocRef(uid, id))
       },
 
       deleteItems: (ids) => {
@@ -113,7 +126,7 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
         const uid = get()._uid
         if (uid && ids.length) {
           const batch = writeBatch(db)
-          ids.forEach(id => batch.delete(userDoc(uid, id)))
+          ids.forEach(id => batch.delete(userDocRef(uid, id)))
           batch.commit()
         }
       },
@@ -122,13 +135,10 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
         set(s => ({
           items: s.items
             .map(i => i.id === id ? { ...i, pinned: !i.pinned, updatedAt: Date.now() } : i)
-            .sort((a, b) => {
-              if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-              return b.createdAt - a.createdAt
-            })
+            .sort((a, b) => { if (a.pinned !== b.pinned) return a.pinned ? -1 : 1; return b.createdAt - a.createdAt })
         }))
-        const item = get().items.find(i => i.id === id)
-        if (item) syncItem(get()._uid, item)
+        const uid = get()._uid
+        if (uid) { const item = get().items.find(i => i.id === id); if (item) scheduleBoardSave(uid, item) }
       },
 
       clearUnpinned: () => {
@@ -137,7 +147,7 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
         const uid = get()._uid
         if (uid && ids.length) {
           const batch = writeBatch(db)
-          ids.forEach(id => batch.delete(userDoc(uid, id)))
+          ids.forEach(id => batch.delete(userDocRef(uid, id)))
           batch.commit()
         }
       },
