@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useState, useRef, useEffect } from 'react'
 import {
   ReactFlow, Background, Controls, MiniMap,
   addEdge, useNodesState, useEdgesState,
@@ -7,23 +7,45 @@ import {
   EdgeLabelRenderer, BaseEdge, getBezierPath,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useNotesStore, SyncVerseCanvas, Block, BlockType } from '../../store/notesStore'
+import { useNotesStore, SyncVerseCanvas, Block, BlockType, SyncVerseNode, SyncVerseEdge, flushAllPendingCanvases } from '../../store/notesStore'
 import { useSyncVerseThemeStore } from '../../store/syncVerseThemeStore'
 import BlockNode from './BlockNode'
 import StickyNode from './StickyNode'
 import NoteCardNode from './NoteCardNode'
 import CanvasFAB from './CanvasFAB'
+import SyncIndicator from '../shared/SyncIndicator'
+import { useSyncStatus } from '../../hooks/useSyncStatus'
 
 const nodeTypes = { block: BlockNode, sticky: StickyNode, note: NoteCardNode }
 const generateId = () => Math.random().toString(36).slice(2, 10)
 
+// ─── Helpers: convert React Flow types ↔ store types ─────────────────────────
+function rfNodesToStore(rfNodes: Node[]): SyncVerseNode[] {
+  return rfNodes.map(n => ({
+    id: n.id,
+    type: n.type as any,
+    position: n.position,
+    data: n.data,
+    width: (n.style?.width as number) || n.width || 280,
+    height: (n.style?.height as number) || n.height || 180,
+  }))
+}
+
+function rfEdgesToStore(rfEdges: Edge[]): SyncVerseEdge[] {
+  return rfEdges.map(e => ({
+    id: e.id, source: e.source, target: e.target,
+    label: typeof e.label === 'string' ? e.label : undefined,
+    animated: e.animated,
+  }))
+}
+
+// ─── Custom edge ──────────────────────────────────────────────────────────────
 function SyncluxEdge({ sourceX, sourceY, targetX, targetY, label, selected, markerEnd, style }: any) {
   const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY })
   return (
     <>
       <BaseEdge
-        path={edgePath}
-        markerEnd={markerEnd}
+        path={edgePath} markerEnd={markerEnd}
         style={{ ...style, stroke: selected ? '#e040fb' : '#a833b9', strokeWidth: selected ? 3 : 2 }}
       />
       {label && (
@@ -41,11 +63,10 @@ function SyncluxEdge({ sourceX, sourceY, targetX, targetY, label, selected, mark
 
 const edgeTypes = { synclyx: SyncluxEdge }
 
+// ─── Edge label popup ─────────────────────────────────────────────────────────
 function EdgeLabelPopup({ edge, onSave, onDelete, onClose }: {
-  edge: Edge
-  onSave: (id: string, label: string) => void
-  onDelete: (id: string) => void
-  onClose: () => void
+  edge: Edge; onSave: (id: string, label: string) => void
+  onDelete: (id: string) => void; onClose: () => void
 }) {
   const [label, setLabel] = useState((edge.label as string) || '')
   return (
@@ -56,11 +77,9 @@ function EdgeLabelPopup({ edge, onSave, onDelete, onClose }: {
           <button className="popup-close" onClick={onClose}>✕</button>
         </div>
         <div className="popup-body">
-          <input
-            className="link-field" autoFocus
+          <input className="link-field" autoFocus
             placeholder="Name this connection (e.g. depends on, leads to...)"
-            value={label}
-            onChange={e => setLabel(e.target.value)}
+            value={label} onChange={e => setLabel(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') { onSave(edge.id, label); onClose() }
               if (e.key === 'Escape') onClose()
@@ -80,33 +99,46 @@ function EdgeLabelPopup({ edge, onSave, onDelete, onClose }: {
   )
 }
 
-function SyncVerseHeader({ canvas, onRename }: { canvas: SyncVerseCanvas; onRename: (name: string) => void }) {
+// ─── Header with rename + sync indicator ──────────────────────────────────────
+function SyncVerseHeader({ canvas, onRename, syncStatus, onManualSave }: {
+  canvas: SyncVerseCanvas
+  onRename: (name: string) => void
+  syncStatus: import('../../hooks/useSyncStatus').SyncStatus
+  onManualSave: () => void
+}) {
   const [editing, setEditing] = React.useState(false)
   const [val, setVal] = React.useState(canvas.name)
+
   return (
     <div className="syncverse-header">
-      {editing ? (
-        <input className="syncverse-title-input" value={val} autoFocus
-          onChange={e => setVal(e.target.value)}
-          onBlur={() => { onRename(val); setEditing(false) }}
-          onKeyDown={e => {
-            if (e.key === 'Enter') { onRename(val); setEditing(false) }
-            if (e.key === 'Escape') setEditing(false)
-          }}
-        />
-      ) : (
-        <span className="syncverse-title" onClick={() => setEditing(true)} title="Click to rename">
-          🌐 {canvas.name} ✎
-        </span>
-      )}
-      <span className="syncverse-hint">Drag · Connect · Click line to name or delete</span>
+      <div className="syncverse-header-left">
+        {editing ? (
+          <input className="syncverse-title-input" value={val} autoFocus
+            onChange={e => setVal(e.target.value)}
+            onBlur={() => { onRename(val); setEditing(false) }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { onRename(val); setEditing(false) }
+              if (e.key === 'Escape') setEditing(false)
+            }}
+          />
+        ) : (
+          <span className="syncverse-title" onClick={() => setEditing(true)} title="Click to rename">
+            🌐 {canvas.name} ✎
+          </span>
+        )}
+        <span className="syncverse-hint">Drag · Connect · Click line to name or delete</span>
+      </div>
+      {/* Sync indicator + manual save */}
+      <div className="syncverse-header-right">
+        <SyncIndicator status={syncStatus} onSave={onManualSave} label />
+      </div>
     </div>
   )
 }
 
 interface Props { canvas: SyncVerseCanvas }
 
-// Inner component — remounts fully when canvas.id changes via key prop from parent
+// ─── Inner component — remounts fully when canvas.id changes ──────────────────
 function SyncVerseInner({ canvas }: Props) {
   const { updateCanvas, notes } = useNotesStore()
   const [labelPopupEdge, setLabelPopupEdge] = useState<Edge | null>(null)
@@ -115,52 +147,75 @@ function SyncVerseInner({ canvas }: Props) {
     id: n.id, type: n.type, position: n.position, data: n.data,
     style: { width: n.width || 280, height: n.height || 180 },
   }))
-
   const initialEdges: Edge[] = (canvas.edges || []).map(e => ({
     id: e.id, source: e.source, target: e.target,
-    label: e.label || undefined,
-    animated: e.animated ?? true,
-    type: 'synclyx',
+    label: e.label || undefined, animated: e.animated ?? true, type: 'synclyx',
   }))
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
-  const saveEdges = useCallback((newEdges: Edge[]) => {
+  // ── Always-current refs — THE KEY FIX ────────────────────────────────────
+  // Every callback that calls updateCanvas MUST use these refs, not canvas.nodes/edges
+  // from the closure. The closure captures a snapshot at render time; refs are always live.
+  const nodesRef = useRef<Node[]>(initialNodes)
+  const edgesRef = useRef<Edge[]>(initialEdges)
+  useEffect(() => { nodesRef.current = nodes }, [nodes])
+  useEffect(() => { edgesRef.current = edges }, [edges])
+
+  // Sync status for cloud indicator
+  const { status: syncStatus, markSaved } = useSyncStatus(canvas.updatedAt, 7000)
+
+  // ── Manual save — flushes React Flow state → store → Firestore immediately ─
+  const handleManualSave = useCallback(() => {
+    // Sync current React Flow state to store right now (no debounce)
     updateCanvas(canvas.id, {
-      edges: newEdges.map(e => ({
-        id: e.id, source: e.source, target: e.target,
-        label: typeof e.label === 'string' ? e.label : undefined,
-        animated: e.animated,
-      }))
+      nodes: rfNodesToStore(nodesRef.current),
+      edges: rfEdgesToStore(edgesRef.current),
     })
+    // Flush to Firestore immediately (bypass the 7s debounce)
+    const { _uid, canvases } = useNotesStore.getState()
+    if (_uid) flushAllPendingCanvases(_uid, canvases)
+    markSaved()
+  }, [canvas.id, updateCanvas, markSaved])
+
+  const saveEdges = useCallback((newEdges: Edge[]) => {
+    updateCanvas(canvas.id, { edges: rfEdgesToStore(newEdges) })
   }, [canvas.id, updateCanvas])
 
+  // ── Node drag stop — use nodesRef (NOT canvas.nodes) ─────────────────────
   const onNodeDragStop = useCallback((_: any, node: Node) => {
-    const updated = (canvas.nodes || []).map(n => n.id === node.id ? { ...n, position: node.position } : n)
-    updateCanvas(canvas.id, { nodes: updated })
-  }, [canvas, updateCanvas])
+    const updated = nodesRef.current.map(n =>
+      n.id === node.id ? { ...n, position: node.position } : n
+    )
+    nodesRef.current = updated
+    updateCanvas(canvas.id, { nodes: rfNodesToStore(updated) })
+  }, [canvas.id, updateCanvas])
 
-  // Persist resize changes (width/height) — NodeResizer changes flow through onNodesChange
-  // with a 'dimensions' type change, so we hook into the standard change handler
+  // ── Node resize (dimensions change) — use nodesRef ───────────────────────
   const handleNodesChange = useCallback((changes: any[]) => {
     onNodesChange(changes)
     const dimChanges = changes.filter((c: any) => c.type === 'dimensions' && c.dimensions)
     if (dimChanges.length > 0) {
-      const updated = (canvas.nodes || []).map(n => {
-        const match = dimChanges.find((c: any) => c.id === n.id)
-        return match ? { ...n, width: match.dimensions.width, height: match.dimensions.height } : n
+      const dimMap = new Map(dimChanges.map((c: any) => [c.id, c.dimensions]))
+      const updated = nodesRef.current.map(n => {
+        const dim = dimMap.get(n.id)
+        return dim ? { ...n, style: { ...n.style, width: dim.width, height: dim.height } } : n
       })
-      updateCanvas(canvas.id, { nodes: updated })
+      updateCanvas(canvas.id, { nodes: rfNodesToStore(updated) })
     }
-  }, [onNodesChange, canvas, updateCanvas])
+  }, [onNodesChange, canvas.id, updateCanvas])
 
+  // ── Node delete — use nodesRef + edgesRef ────────────────────────────────
   const onNodesDelete = useCallback((deleted: Node[]) => {
     const ids = new Set(deleted.map(n => n.id))
-    const updatedNodes = (canvas.nodes || []).filter(n => !ids.has(n.id))
-    const updatedEdges = (canvas.edges || []).filter(e => !ids.has(e.source) && !ids.has(e.target))
-    updateCanvas(canvas.id, { nodes: updatedNodes, edges: updatedEdges })
-  }, [canvas, updateCanvas])
+    const updatedNodes = nodesRef.current.filter(n => !ids.has(n.id))
+    const updatedEdges = edgesRef.current.filter(e => !ids.has(e.source) && !ids.has(e.target))
+    updateCanvas(canvas.id, {
+      nodes: rfNodesToStore(updatedNodes),
+      edges: rfEdgesToStore(updatedEdges),
+    })
+  }, [canvas.id, updateCanvas])
 
   const onConnect = useCallback((connection: Connection) => {
     const newEdge: Edge = { ...connection, id: generateId(), type: 'synclyx', animated: true }
@@ -170,6 +225,11 @@ function SyncVerseInner({ canvas }: Props) {
       return updated
     })
   }, [saveEdges])
+
+  // ── Save viewport when user finishes panning/zooming ─────────────────────
+  const onMoveEnd = useCallback((_: any, viewport: any) => {
+    updateCanvas(canvas.id, { viewport: { x: viewport.x, y: viewport.y, zoom: viewport.zoom } })
+  }, [canvas.id, updateCanvas])
 
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     setLabelPopupEdge(edge)
@@ -191,17 +251,23 @@ function SyncVerseInner({ canvas }: Props) {
     })
   }
 
-  const addNode = (type: string, data: any) => {
+  // ── Add node — use setNodes functional update so nodesRef is always current ─
+  const addNode = useCallback((type: string, data: any) => {
     const id = `node-${generateId()}`
     const position = { x: 200 + Math.random() * 300, y: 150 + Math.random() * 200 }
-    // Give nodes a sensible default size so they aren't cramped — user can resize via corner handle
     const defaultSize = type === 'sticky' ? { width: 200, height: 160 } : { width: 280, height: 180 }
     const newNode: Node = { id, type, position, data, style: defaultSize }
-    setNodes(ns => [...ns, newNode])
-    updateCanvas(canvas.id, { nodes: [...(canvas.nodes || []), { id, type: type as any, position, data, width: defaultSize.width, height: defaultSize.height }] })
-  }
 
-  const handleFABAction = (action: string, extra?: any) => {
+    setNodes(ns => {
+      const updated = [...ns, newNode]
+      nodesRef.current = updated   // update ref synchronously inside callback
+      // Use the complete, up-to-date nodes array — no stale closure
+      updateCanvas(canvas.id, { nodes: rfNodesToStore(updated) })
+      return updated
+    })
+  }, [canvas.id, updateCanvas])
+
+  const handleFABAction = useCallback((action: string, extra?: any) => {
     const blockTypes = ['text','heading','list','checklist','code','image','link','video','audio','file','table']
     if (blockTypes.includes(action)) {
       const block: Block = {
@@ -215,24 +281,21 @@ function SyncVerseInner({ canvas }: Props) {
       const note = notes.find(n => n.id === extra.noteId)
       if (note) addNode('note', { noteId: extra.noteId, label: note.title })
     }
-  }
+  }, [addNode, notes])
 
   return (
     <div className="syncverse-wrap">
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={nodes} edges={edges}
         onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onNodesDelete={onNodesDelete}
         onEdgeClick={onEdgeClick}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        snapToGrid
-        snapGrid={[16, 16]}
+        onMoveEnd={onMoveEnd}
+        nodeTypes={nodeTypes} edgeTypes={edgeTypes}
+        fitView snapToGrid snapGrid={[16, 16]}
         defaultViewport={canvas.viewport}
         deleteKeyCode="Delete"
         proOptions={{ hideAttribution: true }}
@@ -241,7 +304,12 @@ function SyncVerseInner({ canvas }: Props) {
         <Controls style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />
         <MiniMap style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} nodeColor="var(--accent)" />
         <Panel position="top-left">
-          <SyncVerseHeader canvas={canvas} onRename={name => updateCanvas(canvas.id, { name })} />
+          <SyncVerseHeader
+            canvas={canvas}
+            onRename={name => updateCanvas(canvas.id, { name })}
+            syncStatus={syncStatus}
+            onManualSave={handleManualSave}
+          />
         </Panel>
         <Panel position="top-right">
           <div className="syncverse-hint-panel">Select node/line + Delete key to remove</div>
@@ -262,8 +330,6 @@ function SyncVerseInner({ canvas }: Props) {
   )
 }
 
-// Outer wrapper — key={canvas.id} forces a full remount when switching canvases,
-// which fixes the bug where old canvas content bled into the new one
 export default function SyncVerse({ canvas }: Props) {
   return <SyncVerseInner key={canvas.id} canvas={canvas} />
 }

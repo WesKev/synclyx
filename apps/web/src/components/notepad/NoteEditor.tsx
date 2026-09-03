@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { useNotesStore, Block, BlockType, ChecklistItem } from '../../store/notesStore'
+import { useNotesStore, Block, BlockType, ChecklistItem, flushAllPendingNotes } from '../../store/notesStore'
 import BlockRenderer from './BlockRenderer'
 import AtCommandMenu from './AtCommandMenu'
 import TablePopup from './TablePopup'
@@ -10,6 +10,8 @@ import TagInput from './TagInput'
 import NoteLinkMenu from './NoteLinkMenu'
 import NotebookPicker from './NotebookPicker'
 import { LockSetup, UnlockPrompt } from '../shared/PasswordLock'
+import SyncIndicator from '../shared/SyncIndicator'
+import { useSyncStatus } from '../../hooks/useSyncStatus'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
 
@@ -46,6 +48,9 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
   const titleRef = useRef<HTMLInputElement>(null)
   const lastEnterTime = useRef(0)
   const skipHistoryRef = useRef(false)
+
+  // Sync indicator — watches note.updatedAt, shows saving for 5s then saved
+  const { status: syncStatus, markSaved } = useSyncStatus(note?.updatedAt, 5000)
 
   useEffect(() => {
     if (note) { titleRef.current?.focus(); setShowAtMenu(false); setFormatToolbar(null) }
@@ -90,15 +95,22 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     setTimeout(() => { skipHistoryRef.current = false }, 50)
   }, [historyIdx, history, note, updateNote])
 
+  // Manual save — flush to Firestore immediately without waiting for inactivity timer
+  const handleManualSave = useCallback(() => {
+    const { _uid, notes } = useNotesStore.getState()
+    if (_uid) flushAllPendingNotes(_uid, notes)
+    markSaved()
+  }, [markSaved])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo() }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); useNotesStore.getState().addNote() }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleManualSave() }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [undo, redo])
+  }, [undo, redo, handleManualSave])
 
   const isLocked = note && !!lockedItems[note.id] && !unlocked
 
@@ -124,27 +136,20 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
 
     const atIndex = textBeforeCursor.lastIndexOf('@')
     const afterAt = atIndex !== -1 ? textBeforeCursor.slice(atIndex + 1) : ''
-    const atIsActive = atIndex !== -1 &&
-      /^[a-zA-Z]*$/.test(afterAt) &&
-      afterAt.length < 20 &&
-      !afterAt.includes(' ') && !afterAt.includes('\n')
+    const atIsActive = atIndex !== -1 && /^[a-zA-Z]*$/.test(afterAt) && afterAt.length < 20 && !afterAt.includes(' ') && !afterAt.includes('\n')
 
     const doubleBracketIndex = textBeforeCursor.lastIndexOf('[[')
     const afterBracket = doubleBracketIndex !== -1 ? textBeforeCursor.slice(doubleBracketIndex + 2) : ''
-    const bracketIsActive = doubleBracketIndex !== -1 &&
-      !afterBracket.includes('[[') && !afterBracket.includes(' ') &&
-      !afterBracket.includes('\n') && afterBracket.length < 30
+    const bracketIsActive = doubleBracketIndex !== -1 && !afterBracket.includes('[[') && !afterBracket.includes(' ') && !afterBracket.includes('\n') && afterBracket.length < 30
 
     if (atIsActive) {
       const rect = e.target.getBoundingClientRect()
       setAtMenuPos({ x: rect.left + 16, y: rect.bottom })
-      setShowAtMenu(true); setShowNoteLink(false)
-      setAtQuery(afterAt); setActiveBlockId(blockId)
+      setShowAtMenu(true); setShowNoteLink(false); setAtQuery(afterAt); setActiveBlockId(blockId)
     } else if (bracketIsActive) {
       const rect = e.target.getBoundingClientRect()
       setNoteLinkPos({ x: rect.left + 16, y: rect.bottom })
-      setShowNoteLink(true); setShowAtMenu(false)
-      setNoteLinkQuery(afterBracket); setActiveBlockId(blockId)
+      setShowNoteLink(true); setShowAtMenu(false); setNoteLinkQuery(afterBracket); setActiveBlockId(blockId)
     } else {
       setShowAtMenu(false); setShowNoteLink(false)
     }
@@ -170,8 +175,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       lastEnterTime.current = now
       if (diff < 500 || e.ctrlKey) { e.preventDefault(); addBlock('text', blockId) }
       else if ((e.target as HTMLTextAreaElement).selectionStart === value.length) {
-        e.preventDefault()
-        updateBlockContent(blockId, value + '\n')
+        e.preventDefault(); updateBlockContent(blockId, value + '\n')
       }
     }
     if (e.key === 'Backspace' && value === '') { e.preventDefault(); removeBlock(blockId) }
@@ -213,9 +217,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     if (afterId) {
       const idx = blocks.findIndex(b => b.id === afterId)
       blocks.splice(idx + 1, 0, newBlock)
-    } else {
-      blocks.push(newBlock)
-    }
+    } else { blocks.push(newBlock) }
     if (type !== 'heading') {
       const follower: Block = { id: generateId(), type: 'text', content: '', createdAt: Date.now() }
       const insertIdx = blocks.findIndex(b => b.id === newBlock.id)
@@ -231,31 +233,21 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     pushHistory(updated, note.title)
   }
 
-  // ── Fixed handleAtSelect ────────────────────────────────────────────────────
-  // Uses a single updateNote call to avoid the stale-closure double-write bug
-  // that was causing blocks to not appear after selection.
+  // Single-call handleAtSelect — fixes the stale closure double-write bug
   const handleAtSelect = (type: BlockType) => {
     setShowAtMenu(false)
-
-    // Always read fresh state from the store, not the closure's `note`
     const freshNote = useNotesStore.getState().notes.find(n => n.id === activeNoteId)
     if (!freshNote) return
 
-    // Strip the @query text from the active block
     let blocks = freshNote.blocks.map(b => {
       if (b.id !== activeBlockId) return b
       const atIndex = b.content.lastIndexOf('@')
       return { ...b, content: atIndex !== -1 ? b.content.slice(0, atIndex) : b.content }
     })
 
-    // Handle special cases that need different flows
-    if (type === 'table') {
-      updateNote(freshNote.id, { blocks })
-      setShowTablePopup(true)
-      return
-    }
+    if (type === 'table') { updateNote(freshNote.id, { blocks }); setShowTablePopup(true); return }
 
-    if (['image', 'file', 'audio', 'video'].includes(type)) {
+    if (['image','file','audio','video'].includes(type)) {
       const input = document.createElement('input')
       input.type = 'file'
       if (type === 'image') input.accept = 'image/*'
@@ -265,45 +257,33 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
         const file = (e.target as HTMLInputElement).files?.[0]
         if (!file) return
         const meta = { url: URL.createObjectURL(file), name: file.name, size: String(file.size) }
-        // Re-read fresh state again since file picker is async
         const latestNote = useNotesStore.getState().notes.find(n => n.id === activeNoteId)
         if (!latestNote) return
         let latestBlocks = [...latestNote.blocks]
         const newBlock: Block = { id: generateId(), type, content: '', meta, createdAt: Date.now() }
         const follower: Block = { id: generateId(), type: 'text', content: '', createdAt: Date.now() }
         const idx = latestBlocks.findIndex(b => b.id === activeBlockId)
-        if (idx !== -1) {
-          latestBlocks.splice(idx + 1, 0, newBlock, follower)
-        } else {
-          latestBlocks.push(newBlock, follower)
-        }
+        if (idx !== -1) latestBlocks.splice(idx + 1, 0, newBlock, follower)
+        else latestBlocks.push(newBlock, follower)
         updateNote(latestNote.id, { blocks: latestBlocks })
       }
-      updateNote(freshNote.id, { blocks })
-      input.click()
-      return
+      updateNote(freshNote.id, { blocks }); input.click(); return
     }
 
-    // Build new block inline, then call updateNote ONCE with everything
     const newBlock: Block = {
       id: generateId(), type, content: '',
       items: type === 'checklist' ? [{ id: generateId(), text: '', checked: false }] : undefined,
       createdAt: Date.now(),
     }
     const follower: Block = { id: generateId(), type: 'text', content: '', createdAt: Date.now() }
-
     const activeIdx = blocks.findIndex(b => b.id === activeBlockId)
     if (activeIdx !== -1) {
-      if (type !== 'heading') {
-        blocks.splice(activeIdx + 1, 0, newBlock, follower)
-      } else {
-        blocks.splice(activeIdx + 1, 0, newBlock)
-      }
+      if (type !== 'heading') blocks.splice(activeIdx + 1, 0, newBlock, follower)
+      else blocks.splice(activeIdx + 1, 0, newBlock)
     } else {
       blocks.push(newBlock)
       if (type !== 'heading') blocks.push(follower)
     }
-
     updateNote(freshNote.id, { blocks })
     pushHistory(blocks, freshNote.title)
   }
@@ -322,6 +302,9 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
             <TagInput note={note} onUpdate={(tags) => updateNote(note.id, { tags })} />
           </div>
           <div className="editor-toolbar-right">
+            {/* Sync indicator with manual save */}
+            <SyncIndicator status={syncStatus} onSave={handleManualSave} label />
+            <div className="toolbar-divider" />
             <button className={`toolbar-btn ${note.pinned ? 'active' : ''}`} onClick={() => togglePin(note.id)} title="Pin">📌</button>
             <div className="font-picker-wrap">
               <button className="toolbar-btn" onClick={() => setShowNotebookPicker(p => !p)} title="Add to notebook">📁</button>
@@ -329,8 +312,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
                 <NotebookPicker noteId={note.id} currentNotebookId={note.notebookId} onClose={() => setShowNotebookPicker(false)} />
               )}
             </div>
-            <button
-              className={`toolbar-btn ${lockedItems[note.id] ? 'active' : ''}`}
+            <button className={`toolbar-btn ${lockedItems[note.id] ? 'active' : ''}`}
               onClick={() => setShowLockSetup(true)}
               title={lockedItems[note.id] ? 'Locked' : 'Lock note'}>
               {lockedItems[note.id] ? '🔒' : '🔓'}
@@ -350,10 +332,8 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
                 </div>
               )}
             </div>
-            {/* 🕐 opens Version History — NOT export */}
             <button className="toolbar-btn" onClick={() => setShowVersionHistory(true)} title="Version history">🕐</button>
             <button className={`toolbar-btn ${zenMode ? 'active' : ''}`} onClick={() => setZenMode(z => !z)} title="Zen mode">◎</button>
-            {/* Export button — separate from version history */}
             <button className="toolbar-btn export-btn" onClick={() => setShowExportModal(true)}>↑ Export</button>
           </div>
         </div>
@@ -390,8 +370,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       )}
       {showAtMenu && <AtCommandMenu query={atQuery} position={atMenuPos} onSelect={handleAtSelect} onClose={() => setShowAtMenu(false)} />}
       {showNoteLink && (
-        <NoteLinkMenu
-          query={noteLinkQuery} position={noteLinkPos}
+        <NoteLinkMenu query={noteLinkQuery} position={noteLinkPos}
           onSelect={(noteId, noteTitle) => {
             setShowNoteLink(false)
             const block = note.blocks.find(b => b.id === activeBlockId)
@@ -399,9 +378,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
               const bracketIdx = block.content.lastIndexOf('[[')
               const cleaned = block.content.slice(0, bracketIdx)
               updateBlockContent(activeBlockId, cleaned + `[[${noteTitle}]]`)
-              if (!note.linkedNotes.includes(noteId)) {
-                updateNote(note.id, { linkedNotes: [...note.linkedNotes, noteId] })
-              }
+              if (!note.linkedNotes.includes(noteId)) updateNote(note.id, { linkedNotes: [...note.linkedNotes, noteId] })
             }
           }}
           onClose={() => setShowNoteLink(false)}

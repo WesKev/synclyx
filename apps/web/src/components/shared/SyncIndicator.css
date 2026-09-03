@@ -1,0 +1,112 @@
+.sync-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+/* Cloud SVG base */
+.sync-cloud { flex-shrink: 0; transition: all 0.3s ease; }
+
+.sync-cloud-path {
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  transition: fill 0.3s ease, stroke 0.3s ease;
+}
+.sync-check, .sync-arrow line, .sync-arrow polyline {
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+/* ── Idle: faint outline ── */
+.sync-idle .sync-cloud-path {
+  stroke: var(--text-faint);
+  fill: transparent;
+  opacity: 0.5;
+}
+.sync-idle .sync-label { opacity: 0; width: 0; overflow: hidden; }
+.sync-idle .sync-indicator { opacity: 0.4; }
+
+/* ── Saving: accent fill + pulse + arrow ── */
+.sync-saving .sync-cloud-path {
+  stroke: var(--accent);
+  fill: var(--accent-dim);
+  opacity: 1;
+}
+.sync-saving .sync-arrow line,
+.sync-saving .sync-arrow polyline {
+  stroke: var(--accent);
+  animation: sync-arrow-bounce 0.9s ease-in-out infinite;
+}
+.sync-saving .sync-label { color: var(--accent); opacity: 1; }
+.sync-saving .sync-cloud { animation: sync-pulse 1.4s ease-in-out infinite; }
+
+/* ── Saved: filled + checkmark ── */
+.sync-saved .sync-cloud-path {
+  fill: var(--accent);
+  stroke: var(--accent);
+  opacity: 1;
+}
+.sync-saved .sync-check {
+  stroke: #fff;
+  animation: sync-check-pop 0.3s ease-out forwards;
+}
+.sync-saved .sync-label { color: var(--accent); opacity: 1; }
+
+/* ── Animations ── */
+@keyframes sync-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
+
+@keyframes sync-arrow-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+
+@keyframes sync-check-pop {
+  0% { stroke-dashoffset: 20; stroke-dasharray: 20; opacity: 0; }
+  60% { opacity: 1; }
+  100% { stroke-dashoffset: 0; stroke-dasharray: 20; opacity: 1; }
+}
+
+/* Label transition */
+.sync-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: opacity 0.3s ease;
+}
+
+/* Manual save button */
+.sync-save-btn {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.sync-save-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+.sync-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Light mode adjustments */
+[data-theme="light"] .sync-saved .sync-check { stroke: #fff; }
+[data-theme="light"] .sync-saving .sync-cloud-path { fill: rgba(168,51,185,0.12); }
