@@ -63,8 +63,8 @@ export const PRESET_TAGS = [
 ]
 
 const MAX_VERSIONS = 5
-const NOTE_SYNC_DELAY = 5000    // 5s inactivity before saving note to Firestore
-const CANVAS_SYNC_DELAY = 7000  // 7s inactivity before saving canvas to Firestore
+const NOTE_SYNC_DELAY = 2000    // 2s inactivity before saving note to Firestore
+const CANVAS_SYNC_DELAY = 3000  // 3s inactivity before saving canvas to Firestore
 
 // ─── Module-level debounce timers (outside store to avoid Zustand serialisation) ──
 const _noteTimers: Record<string, ReturnType<typeof setTimeout>> = {}
@@ -185,6 +185,7 @@ interface NotesStore {
   updateCanvas: (id: string, updates: Partial<SyncVerseCanvas>) => void
   deleteCanvas: (id: string) => void
   setActiveCanvas: (id: string | null) => void
+  saveCanvasVersion: (id: string) => void
 }
 
 export const useNotesStore = create<NotesStore>()(
@@ -201,10 +202,40 @@ export const useNotesStore = create<NotesStore>()(
         const { notes, notebooks, canvases, trash } = get()
         migrateLocalToFirestore(uid, notes, notebooks, canvases, trash).then(() => {
           const unsubs: Unsubscribe[] = []
-          unsubs.push(listenToNotes(uid, (n) => set({ notes: n.sort((a, b) => b.updatedAt - a.updatedAt) })))
-          unsubs.push(listenToNotebooks(uid, (n) => set({ notebooks: n.sort((a, b) => a.createdAt - b.createdAt) })))
-          unsubs.push(listenToCanvases(uid, (c) => set({ canvases: c.sort((a, b) => b.updatedAt - a.updatedAt) })))
-          unsubs.push(listenToTrash(uid, (t) => set({ trash: t.sort((a, b) => b.deletedAt - a.deletedAt) })))
+          // ── Merge-aware listeners ──────────────────────────────────────
+          // When Firestore fires a snapshot, prefer the LOCAL version if it is
+          // NEWER than what Firestore returned. This prevents the common bug
+          // where a snapshot from a previous save overwrites in-progress edits
+          // that haven't been debounced to Firestore yet.
+          unsubs.push(listenToNotes(uid, (incoming) => {
+            const { notes: local } = get()
+            const merged = incoming.map(inNote => {
+              const loc = local.find(n => n.id === inNote.id)
+              return (loc && loc.updatedAt > inNote.updatedAt) ? loc : inNote
+            })
+            const fsIds = new Set(incoming.map(n => n.id))
+            const localOnly = local.filter(n => !fsIds.has(n.id))
+            set({ notes: [...merged, ...localOnly].sort((a, b) => b.updatedAt - a.updatedAt) })
+          }))
+
+          unsubs.push(listenToNotebooks(uid, (n) =>
+            set({ notebooks: n.sort((a, b) => a.createdAt - b.createdAt) })
+          ))
+
+          unsubs.push(listenToCanvases(uid, (incoming) => {
+            const { canvases: local } = get()
+            const merged = incoming.map(inCanvas => {
+              const loc = local.find(c => c.id === inCanvas.id)
+              return (loc && loc.updatedAt > inCanvas.updatedAt) ? loc : inCanvas
+            })
+            const fsIds = new Set(incoming.map(c => c.id))
+            const localOnly = local.filter(c => !fsIds.has(c.id))
+            set({ canvases: [...merged, ...localOnly].sort((a, b) => b.updatedAt - a.updatedAt) })
+          }))
+
+          unsubs.push(listenToTrash(uid, (t) =>
+            set({ trash: t.sort((a, b) => b.deletedAt - a.deletedAt) })
+          ))
           set({ _unsubs: unsubs })
         })
       },
@@ -421,6 +452,23 @@ export const useNotesStore = create<NotesStore>()(
       },
 
       // ── Save canvas version + flush on canvas switch ───────────────────────
+      // Save a named version snapshot of a canvas on demand (called by 1.5min auto-timer)
+      saveCanvasVersion: (id) => {
+        const canvas = get().canvases.find(c => c.id === id)
+        if (!canvas) return
+        const existing = canvas.versions || []
+        // Don't save duplicate — skip if nothing changed since last version
+        const last = existing[0]
+        if (last &&
+          JSON.stringify(last.nodes) === JSON.stringify(canvas.nodes) &&
+          JSON.stringify(last.edges) === JSON.stringify(canvas.edges)) return
+        const version = makeCanvasVersion(canvas)
+        const updated = { ...canvas, versions: [version, ...existing].slice(0, MAX_VERSIONS) }
+        set(s => ({ canvases: s.canvases.map(c => c.id === id ? updated : c) }))
+        const uid = get()._uid
+        if (uid) saveCanvas(uid, updated)
+      },
+
       setActiveCanvas: (id) => {
         const { activeCanvasId, canvases } = get()
         if (activeCanvasId && activeCanvasId !== id) {

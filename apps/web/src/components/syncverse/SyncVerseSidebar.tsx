@@ -136,14 +136,12 @@ export default function SyncVerseSidebar() {
                     {isLocked && '🔒 '}{canvas.name}
                   </span>
                   <div className="note-item-actions">
-                    {/* Version history — only show if canvas has saved versions */}
-                    {hasVersions && (
-                      <button
-                        className="note-pin-btn sv-version-btn"
-                        title={`Version history (${canvas.versions!.length})`}
-                        onClick={e => { e.stopPropagation(); setVersionCanvasId(canvas.id) }}
-                      >🕐</button>
-                    )}
+                    {/* Version history — always visible, auto-saves every 1.5min */}
+                    <button
+                      className="note-pin-btn sv-version-btn"
+                      title={hasVersions ? `Version history (${canvas.versions!.length} saved)` : 'Version history — opens after first auto-save'}
+                      onClick={e => { e.stopPropagation(); setVersionCanvasId(canvas.id) }}
+                    >🕐</button>
                     <select className="sv-nb-select"
                       value={canvas.notebookId || ''}
                       onClick={e => e.stopPropagation()}

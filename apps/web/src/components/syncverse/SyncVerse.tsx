@@ -163,8 +163,57 @@ function SyncVerseInner({ canvas }: Props) {
   useEffect(() => { nodesRef.current = nodes }, [nodes])
   useEffect(() => { edgesRef.current = edges }, [edges])
 
-  // Sync status for cloud indicator
-  const { status: syncStatus, markSaved } = useSyncStatus(canvas.updatedAt, 7000)
+  // Sync status for cloud indicator — matches 3s debounce
+  const { status: syncStatus, markSaved } = useSyncStatus(canvas.updatedAt, 3000)
+
+  // ── Comprehensive save: watches ALL node/edge changes ─────────────────────
+  // This catches everything — drags, keyboard deletes, edge changes, resizes —
+  // not just the specific events we handle explicitly above.
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const isMounted = useRef(false)
+
+  useEffect(() => {
+    // Skip initial mount render — no changes to save yet
+    if (!isMounted.current) { isMounted.current = true; return }
+    clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      updateCanvas(canvas.id, {
+        nodes: rfNodesToStore(nodesRef.current),
+        edges: rfEdgesToStore(edgesRef.current),
+      })
+    }, 1000) // 1s debounce — fast enough to catch all changes
+    return () => clearTimeout(saveTimerRef.current)
+  }, [nodes, edges]) // eslint-disable-line react-hooks/exhaustive-deps
+  // canvas.id and updateCanvas intentionally omitted — stable for component lifetime
+
+  // ── Flush immediately on unmount (view switch) ────────────────────────────
+  // Ensures the very last state is saved even if the debounce hasn't fired
+  useEffect(() => {
+    return () => {
+      clearTimeout(saveTimerRef.current)
+      updateCanvas(canvas.id, {
+        nodes: rfNodesToStore(nodesRef.current),
+        edges: rfEdgesToStore(edgesRef.current),
+      })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Auto-version every 1.5 minutes ───────────────────────────────────────
+  // Saves a "before" snapshot of the current canvas state so the user can
+  // always recover the version before they started the current editing session.
+  // On first fire: saves the state as it was when the user opened this canvas.
+  useEffect(() => {
+    const { saveCanvasVersion } = useNotesStore.getState()
+    // Save one version immediately on mount (the "before" state)
+    saveCanvasVersion(canvas.id)
+
+    // Then auto-save every 1.5 minutes while editing
+    const interval = setInterval(() => {
+      useNotesStore.getState().saveCanvasVersion(canvas.id)
+    }, 90_000) // 1.5 minutes
+
+    return () => clearInterval(interval)
+  }, [canvas.id])
 
   // ── Manual save — flushes React Flow state → store → Firestore immediately ─
   const handleManualSave = useCallback(() => {
