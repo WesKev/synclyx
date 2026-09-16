@@ -1,0 +1,117 @@
+/* ─── CodeViewer (read-only CodeMirror on SyncVerse) ──────────────────────── */
+.sv-code-viewer {
+  display: flex; flex-direction: column;
+  height: 100%; gap: 0.35rem; overflow: hidden;
+}
+
+.sv-code-viewer-bar {
+  display: flex; align-items: center; gap: 0.4rem;
+  flex-shrink: 0; flex-wrap: wrap;
+}
+
+.sv-code-viewer-lang {
+  font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #a833b9;
+  background: rgba(168, 51, 185, 0.14);
+  padding: 0.12rem 0.45rem; border-radius: 2rem;
+}
+
+.sv-code-viewer-badge,
+.sv-readonly-badge {
+  font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: rgba(241, 237, 237, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.12rem 0.4rem; border-radius: 2rem;
+}
+
+[data-sv-theme="light"] .sv-code-viewer-badge,
+[data-sv-theme="light"] .sv-readonly-badge {
+  color: #666; background: rgba(0, 0, 0, 0.05); border-color: rgba(0, 0, 0, 0.12);
+}
+
+.sv-code-viewer-edit,
+.sv-open-syncpad {
+  font-size: 0.68rem; font-weight: 600;
+  color: #a833b9; background: transparent;
+  border: 1px solid #a833b9; border-radius: 0.375rem;
+  padding: 0.18rem 0.5rem; cursor: pointer;
+  transition: all 0.15s ease; white-space: nowrap;
+  margin-left: auto; font-family: inherit;
+}
+.sv-code-viewer-edit:hover,
+.sv-open-syncpad:hover { background: #a833b9; color: #fff; }
+
+.sv-code-viewer-host {
+  flex: 1; min-height: 0; overflow: hidden;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sv-code-viewer-host .cm-editor { height: 100%; }
+
+/* ─── Table footer (read-only badge + edit button) ────────────────────────── */
+.sv-table-footer {
+  display: flex; align-items: center; gap: 0.4rem;
+  flex-shrink: 0; margin-top: 0.35rem;
+}
+
+/* ─── Locked note card on canvas ──────────────────────────────────────────── */
+.sv-node-locked {
+  border-color: rgba(168, 51, 185, 0.5) !important;
+}
+
+.sv-locked-body {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0.5rem; height: 100%; padding: 0.75rem; text-align: center;
+}
+
+.sv-locked-icon { font-size: 1.75rem; opacity: 0.8; }
+
+.sv-locked-text {
+  font-size: 0.75rem; color: rgba(241, 237, 237, 0.6); line-height: 1.4;
+}
+[data-sv-theme="light"] .sv-locked-text { color: #666; }
+
+.sv-locked-unlock-btn {
+  font-size: 0.7rem; font-weight: 600; color: #fff;
+  background: #a833b9; border: none; border-radius: 0.375rem;
+  padding: 0.28rem 0.7rem; cursor: pointer;
+  transition: filter 0.15s ease; font-family: inherit;
+}
+.sv-locked-unlock-btn:hover { filter: brightness(1.12); }
+
+/* Unlock prompt rendered above the node it belongs to */
+.sv-unlock-overlay {
+  position: fixed; inset: 0; z-index: 3000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(11, 3, 45, 0.55); backdrop-filter: blur(0.2rem);
+}
+
+/* ─── SyncPad upload toast ────────────────────────────────────────────────── */
+.sp-upload-toast {
+  position: fixed; bottom: 1.5rem; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 0.4rem;
+  min-width: 15rem; max-width: min(24rem, 90vw);
+  background: var(--bg-surface); color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.9rem; font-size: 0.8rem;
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.35);
+  z-index: 4000;
+}
+
+.sp-upload-toast.error {
+  border-color: #ff6b6b; color: #ff9aa6;
+}
+
+.sp-upload-bar {
+  height: 0.28rem; background: var(--bg-elevated);
+  border-radius: 2rem; overflow: hidden;
+}
+
+.sp-upload-fill {
+  height: 100%; background: var(--accent);
+  border-radius: 2rem; transition: width 0.2s ease;
+}

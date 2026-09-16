@@ -11,6 +11,8 @@ import NoteLinkMenu from './NoteLinkMenu'
 import NotebookPicker from './NotebookPicker'
 import { LockSetup, UnlockPrompt } from '../shared/PasswordLock'
 import SyncIndicator from '../shared/SyncIndicator'
+import { uploadFile } from '../../lib/storageUpload'
+import { useAuthStore } from '../../store/authStore'
 import { useSyncStatus } from '../../hooks/useSyncStatus'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
@@ -26,6 +28,8 @@ interface HistoryEntry { blocks: Block[]; title: string }
 export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () => void }) {
   const { notes, activeNoteId, updateNote, togglePin, lockedItems = {}, moveToTrash } = useNotesStore()
   const note = notes.find(n => n.id === activeNoteId)
+  const { user } = useAuthStore()
+  const [uploadStatus, setUploadStatus] = useState<{ name: string; progress: number; error?: string } | null>(null)
 
   const [showAtMenu, setShowAtMenu] = useState(false)
   const [atMenuPos, setAtMenuPos] = useState({ x: 0, y: 0 })
@@ -260,16 +264,58 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       input.onchange = (e) => {
         const file = (e.target as HTMLInputElement).files?.[0]
         if (!file) return
-        const meta = { url: URL.createObjectURL(file), name: file.name, size: String(file.size) }
+
+        // Insert the block straight away with a local preview so the editor
+        // feels instant, then swap in the real hosted URL once upload finishes.
+        const localPreview = URL.createObjectURL(file)
+        const blockId = generateId()
         const latestNote = useNotesStore.getState().notes.find(n => n.id === activeNoteId)
         if (!latestNote) return
         let latestBlocks = [...latestNote.blocks]
-        const newBlock: Block = { id: generateId(), type, content: '', meta, createdAt: Date.now() }
+        const newBlock: Block = {
+          id: blockId, type, content: '',
+          meta: { url: localPreview, name: file.name, size: String(file.size), uploading: 'true' },
+          createdAt: Date.now(),
+        }
         const follower: Block = { id: generateId(), type: 'text', content: '', createdAt: Date.now() }
         const idx = latestBlocks.findIndex(b => b.id === activeBlockId)
         if (idx !== -1) latestBlocks.splice(idx + 1, 0, newBlock, follower)
         else latestBlocks.push(newBlock, follower)
         updateNote(latestNote.id, { blocks: latestBlocks })
+
+        // A blob: URL only exists inside THIS browser tab — it means nothing
+        // on another device, which is why media never used to sync. Upload to
+        // Cloudinary and store the real URL instead.
+        if (!user) {
+          setUploadStatus({ name: file.name, progress: 0, error: 'Sign in to upload files so they sync across devices' })
+          setTimeout(() => setUploadStatus(null), 5000)
+          return
+        }
+
+        setUploadStatus({ name: file.name, progress: 0 })
+        uploadFile(user.uid, file, (p) => {
+          if (p.error) {
+            setUploadStatus({ name: file.name, progress: 0, error: p.error })
+            setTimeout(() => setUploadStatus(null), 6000)
+            return
+          }
+          if (p.url) {
+            const n = useNotesStore.getState().notes.find(x => x.id === activeNoteId)
+            if (n) {
+              const swapped = n.blocks.map(b =>
+                b.id === blockId
+                  ? { ...b, meta: { ...b.meta, url: p.url as string, name: file.name, size: String(file.size) } }
+                  : b
+              )
+              updateNote(n.id, { blocks: swapped })
+            }
+            setUploadStatus({ name: file.name, progress: 100 })
+            setTimeout(() => setUploadStatus(null), 1800)
+            URL.revokeObjectURL(localPreview)
+          } else {
+            setUploadStatus({ name: file.name, progress: p.progress })
+          }
+        })
       }
       updateNote(freshNote.id, { blocks }); input.click(); return
     }
@@ -393,6 +439,22 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
           onConfirm={(r, c) => { setShowTablePopup(false); addBlock('table', activeBlockId, { rows: String(r), cols: String(c) }) }}
           onClose={() => setShowTablePopup(false)}
         />
+      )}
+      {uploadStatus && (
+        <div className={`sp-upload-toast ${uploadStatus.error ? 'error' : ''}`}>
+          {uploadStatus.error ? (
+            <span>⚠️ {uploadStatus.error}</span>
+          ) : uploadStatus.progress === 100 ? (
+            <span>✅ {uploadStatus.name} uploaded</span>
+          ) : (
+            <>
+              <span>↑ Uploading {uploadStatus.name}…</span>
+              <div className="sp-upload-bar">
+                <div className="sp-upload-fill" style={{ width: `${uploadStatus.progress}%` }} />
+              </div>
+            </>
+          )}
+        </div>
       )}
       {showExportModal && <ExportModal note={note} onClose={() => setShowExportModal(false)} />}
       {showVersionHistory && <VersionHistoryModal note={note} onClose={() => setShowVersionHistory(false)} />}

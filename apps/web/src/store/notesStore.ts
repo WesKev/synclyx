@@ -43,6 +43,9 @@ export interface SyncVerseCanvas {
   nodes: SyncVerseNode[]; edges: SyncVerseEdge[]
   viewport: { x: number; y: number; zoom: number }
   versions?: CanvasVersion[]
+  /** SyncPad note holding editable copies of this canvas's table/code blocks.
+   *  Created lazily the first time the user clicks "Edit in SyncPad". */
+  companionNoteId?: string
   createdAt: number; updatedAt: number
 }
 
@@ -146,6 +149,9 @@ interface NotesStore {
   /** Save a version snapshot. Call ONLY on canvas switch or manual save —
    *  never on mount / auto-timer. See SyncVerse.tsx for why. */
   saveCanvasVersion: (id: string) => void
+  /** Find (or create on first use) the SyncPad note that holds the editable
+   *  copies of a canvas's table and code blocks. Returns the note id. */
+  getOrCreateCompanionNote: (canvasId: string) => string | null
 }
 
 export const useNotesStore = create<NotesStore>()(
@@ -261,6 +267,32 @@ export const useNotesStore = create<NotesStore>()(
         // Short debounce for typing — the pending-write guard on the listener
         // protects this from being overwritten while it's queued.
         queueWrite(['users', uid, 'notes', id], note, NOTE_CONTENT_DEBOUNCE)
+
+        // ── Companion note → canvas reverse sync ───────────────────────────
+        // If this note is a canvas's companion, push any edited table/code
+        // blocks back onto the matching canvas nodes, so the read-only views
+        // in SyncVerse stay current with what the user just typed here.
+        if (updates.blocks) {
+          const owningCanvas = get().canvases.find(c => c.companionNoteId === id)
+          if (owningCanvas) {
+            const blockById = new Map(note.blocks.map(b => [b.id, b]))
+            let changed = false
+            const newNodes = owningCanvas.nodes.map(n => {
+              const nb = n.data?.block
+              if (!nb || (nb.type !== 'table' && nb.type !== 'code')) return n
+              const edited = blockById.get(nb.id)
+              if (!edited) return n
+              if (JSON.stringify(edited) === JSON.stringify(nb)) return n
+              changed = true
+              return { ...n, data: { ...n.data, block: JSON.parse(JSON.stringify(edited)) } }
+            })
+            if (changed) {
+              const updatedCanvas = { ...owningCanvas, nodes: newNodes, updatedAt: Date.now() }
+              set(s => ({ canvases: s.canvases.map(c => c.id === owningCanvas.id ? updatedCanvas : c) }))
+              queueWrite(['users', uid, 'canvases', owningCanvas.id], updatedCanvas, NOTE_CONTENT_DEBOUNCE)
+            }
+          }
+        }
       },
 
       deleteNote: (id) => {
@@ -499,6 +531,72 @@ export const useNotesStore = create<NotesStore>()(
         set(s => ({ canvases: s.canvases.map(c => c.id === id ? updated : c) }))
         const uid = get()._uid
         if (uid) queueWrite(['users', uid, 'canvases', id], updated, 0)
+      },
+
+      // ── Companion note ────────────────────────────────────────────────────
+      // Tables and code blocks are read-only on the canvas (editing a live
+      // spreadsheet or code editor inside React Flow fights the canvas for
+      // pointer/keyboard events). Instead, the first time the user clicks
+      // "Edit in SyncPad" on any table/code node, we create ONE note per
+      // canvas that holds editable copies of all of them.
+      //
+      // Lazy by design: no companion notes clutter the SyncPad sidebar for
+      // canvases you never edit tables/code on.
+      getOrCreateCompanionNote: (canvasId) => {
+        const canvas = get().canvases.find(c => c.id === canvasId)
+        if (!canvas) return null
+
+        // Already exists and still present? Refresh its blocks from the canvas
+        // and reuse it.
+        const existing = canvas.companionNoteId
+          ? get().notes.find(n => n.id === canvas.companionNoteId)
+          : undefined
+
+        // Pull every table/code block currently on the canvas
+        const sourceBlocks: Block[] = canvas.nodes
+          .filter(n => n.data?.block && (n.data.block.type === 'table' || n.data.block.type === 'code'))
+          .map(n => JSON.parse(JSON.stringify(n.data.block as Block)))
+
+        const intro: Block = {
+          id: generateId(),
+          type: 'text',
+          content: `Companion note for "${canvas.name}" — edit the tables and code editors below. Changes sync back to the canvas.`,
+          createdAt: Date.now(),
+        }
+
+        if (existing) {
+          // Merge: keep blocks the user already has (so their edits survive),
+          // append any canvas blocks that aren't in the note yet.
+          const existingIds = new Set(existing.blocks.map(b => b.id))
+          const newOnes = sourceBlocks.filter(b => !existingIds.has(b.id))
+          if (newOnes.length > 0) {
+            const updated = { ...existing, blocks: [...existing.blocks, ...newOnes], updatedAt: Date.now() }
+            set(s => ({ notes: s.notes.map(n => n.id === existing.id ? updated : n) }))
+            const uid = get()._uid
+            if (uid) queueWrite(['users', uid, 'notes', existing.id], updated, 0)
+          }
+          return existing.id
+        }
+
+        const note: Note = {
+          id: generateId(),
+          title: `Companion Note for ${canvas.name}`,
+          blocks: [intro, ...sourceBlocks],
+          tags: [], pinned: false, linkedNotes: [], versions: [],
+          notebookId: canvas.notebookId,
+          createdAt: Date.now(), updatedAt: Date.now(),
+        }
+        set(s => ({ notes: [note, ...s.notes] }))
+
+        const updatedCanvas = { ...canvas, companionNoteId: note.id, updatedAt: Date.now() }
+        set(s => ({ canvases: s.canvases.map(c => c.id === canvasId ? updatedCanvas : c) }))
+
+        const uid = get()._uid
+        if (uid) {
+          queueWrite(['users', uid, 'notes', note.id], note, 0)
+          queueWrite(['users', uid, 'canvases', canvasId], updatedCanvas, 0)
+        }
+        return note.id
       },
 
       setActiveCanvas: (id) => {

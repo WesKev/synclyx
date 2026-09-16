@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Handle, Position, NodeProps, useReactFlow, NodeResizer } from '@xyflow/react'
 import { Block, ChecklistItem, useNotesStore } from '../../store/notesStore'
 import { uploadFile, type UploadProgress } from '../../lib/storageUpload'
+import CodeViewer from './CodeViewer'
 import { useAuthStore } from '../../store/authStore'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
@@ -41,8 +42,7 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [localContent, setLocalContent] = useState(block?.content || '')
   const [localItems, setLocalItems] = useState<ChecklistItem[]>(block?.items || [])
-  const [code, setCode] = useState(block?.meta?.content || '')
-  const [lang, setLang] = useState(block?.meta?.lang || 'javascript')
+  // Code blocks are read-only here (CodeViewer) — no local editing state needed
   const [listItems, setListItems] = useState<string[]>(
     block?.meta?.items ? JSON.parse(block.meta.items) : ['']
   )
@@ -114,6 +114,17 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
       })
     }
     input.click()
+  }
+
+  // Opens (creating on first use) the canvas's companion note in SyncPad,
+  // where table and code blocks are actually editable. Read-only here.
+  const openCompanionNote = () => {
+    const { activeCanvasId: cid, getOrCreateCompanionNote, setActiveNote } = useNotesStore.getState()
+    if (!cid) return
+    const noteId = getOrCreateCompanionNote(cid)
+    if (!noteId) return
+    setActiveNote(noteId)
+    window.dispatchEvent(new CustomEvent('synclyx:switch-view', { detail: 'notes' }))
   }
 
   const renderBody = () => {
@@ -212,20 +223,16 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
           </div>
         )
 
+      // Code is READ-ONLY on the canvas — a live CodeMirror editor inside a
+      // React Flow node fights the canvas for keyboard/pointer events. Editing
+      // happens in the canvas's companion note in SyncPad.
       case 'code':
         return (
-          <div className="sv-code-wrap sv-fill-height">
-            <select {...ND} className="nodrag nopan sv-code-lang" value={lang}
-              onChange={e => { setLang(e.target.value); persist({ meta: { ...block.meta, content: code, lang: e.target.value } }) }}>
-              {['javascript','typescript','python','html','css','json','bash','sql','rust','go'].map(l =>
-                <option key={l} value={l}>{l}</option>
-              )}
-            </select>
-            <textarea {...ND} className="nodrag nopan sv-editable-code sv-fill-height"
-              value={code} spellCheck={false} placeholder={`// ${lang}...`}
-              onChange={e => { setCode(e.target.value); persist({ meta: { ...block.meta, content: e.target.value, lang } }) }}
-            />
-          </div>
+          <CodeViewer
+            code={block.meta?.content || block.content || ''}
+            language={block.meta?.lang || 'javascript'}
+            onEditInSyncPad={openCompanionNote}
+          />
         )
 
       case 'image': {
@@ -424,9 +431,6 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
       case 'table': {
         let tableData: string[][] = []
         try { if (block.meta?.tableData) tableData = JSON.parse(block.meta.tableData) } catch { }
-        const { activeCanvasId: cid, canvases } = useNotesStore.getState()
-        const linkedNoteId = canvases.find(c => c.id === cid)?.noteId
-
         return (
           <div className="sv-table-preview">
             {tableData.length > 0 ? (
@@ -442,15 +446,13 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
             ) : (
               <p className="sv-table-empty">⊞ Table — no data yet</p>
             )}
-            {linkedNoteId && (
+            <div className="sv-table-footer">
+              <span className="sv-readonly-badge">Read-only</span>
               <button {...ND} className="nodrag nopan sv-open-syncpad"
-                onClick={() => {
-                  useNotesStore.getState().setActiveNote(linkedNoteId)
-                  window.dispatchEvent(new CustomEvent('synclyx:switch-view', { detail: 'notes' }))
-                }}>
+                onClick={openCompanionNote}>
                 ✎ Edit in SyncPad
               </button>
-            )}
+            </div>
           </div>
         )
       }

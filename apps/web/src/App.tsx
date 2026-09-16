@@ -26,6 +26,7 @@ import './styles/session-a-patch.css'
 import './styles/hotfix-patch.css'
 import './styles/sv-final-patch.css'
 import './styles/major-update-patch.css'
+import './styles/session-b-patch.css'
 
 export type AppView = 'notes' | 'syncverse' | 'syncboard'
 
