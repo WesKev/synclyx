@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNotesStore } from '../../store/notesStore'
 
 interface Props {
@@ -7,6 +8,8 @@ interface Props {
   onSelect: (noteId: string, noteTitle: string) => void
   onClose: () => void
 }
+
+const EDGE_MARGIN = 12
 
 export default function NoteLinkMenu({ query, position, onSelect, onClose }: Props) {
   const { notes, activeNoteId } = useNotesStore()
@@ -17,13 +20,22 @@ export default function NoteLinkMenu({ query, position, onSelect, onClose }: Pro
     .filter(n => n.title.toLowerCase().includes(query.toLowerCase()))
     .slice(0, 8)
 
-  const spaceBelow = window.innerHeight - position.y - 8
+  const menuW = 260
   const menuH = Math.min(filtered.length * 48 + 48, 320)
+
+  const clampedX = Math.min(Math.max(position.x, EDGE_MARGIN), window.innerWidth - menuW - EDGE_MARGIN)
+  const spaceBelow = window.innerHeight - position.y - EDGE_MARGIN
+  const wouldOverflowBottom = spaceBelow < menuH
+  const clampedTop = wouldOverflowBottom
+    ? Math.max(EDGE_MARGIN, position.y - menuH - 4)
+    : Math.min(position.y + 4, window.innerHeight - menuH - EDGE_MARGIN)
+
   const style: React.CSSProperties = {
-    left: Math.min(position.x, window.innerWidth - 260),
+    position: 'fixed',
+    left: clampedX,
+    top: Math.max(EDGE_MARGIN, clampedTop),
+    zIndex: 300,
   }
-  if (spaceBelow < menuH) style.bottom = window.innerHeight - position.y + 8
-  else style.top = position.y + 4
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -33,8 +45,9 @@ export default function NoteLinkMenu({ query, position, onSelect, onClose }: Pro
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose])
 
-  return (
-    <div ref={ref} className="at-menu note-link-menu" style={{ ...style, position: 'fixed', zIndex: 300 }}>
+  // Portal to document.body — same fix as AtCommandMenu, same root cause.
+  return createPortal(
+    <div ref={ref} className="at-menu note-link-menu" style={style}>
       <div className="at-menu-header">🔗 Link a note</div>
       {filtered.length === 0 ? (
         <div className="note-link-empty">No notes found for "{query}"</div>
@@ -54,6 +67,7 @@ export default function NoteLinkMenu({ query, position, onSelect, onClose }: Pro
         ))
       )}
       <div className="note-link-hint">Type to filter · Enter to link</div>
-    </div>
+    </div>,
+    document.body
   )
 }

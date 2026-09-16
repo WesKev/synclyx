@@ -85,7 +85,7 @@ export default function Sidebar({ onSwitchToSyncVerse }: { onSwitchToSyncVerse?:
     <aside className="sidebar">
       {/* Header */}
       <div className="sidebar-header">
-        <span className="sidebar-logo">Synclyx</span>
+        <span className="sidebar-logo">SyncPad</span>
         <div className="sidebar-header-actions">
           <button className="theme-toggle" onClick={() => setShowTrash(true)} title="Trash">
             🗑{trash.length > 0 && <span className="trash-badge">{trash.length}</span>}

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { BlockType } from '../../store/notesStore'
 
 const commands: { type: BlockType; label: string; icon: string; desc: string }[] = [
@@ -22,23 +23,30 @@ interface Props {
   onClose: () => void
 }
 
+// Safe minimum distance from any viewport edge — the menu can never render
+// closer to the top than this, which is what previously let it appear to
+// "float" up near the browser chrome when the anchor's rect.y was small.
+const EDGE_MARGIN = 12
+
 export default function AtCommandMenu({ query, position, onSelect, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const filtered = commands.filter(c => c.label.toLowerCase().startsWith(query.toLowerCase()))
 
-  // Smart position — never go offscreen
   const menuW = 320
   const menuH = Math.min(filtered.length * 52 + 36, 360)
-  const spaceBelow = window.innerHeight - position.y - 8
-  const spaceRight = window.innerWidth - position.x - 8
+
+  // Clamp fully within the viewport — never allowed to touch or cross an edge.
+  const clampedX = Math.min(Math.max(position.x, EDGE_MARGIN), window.innerWidth - menuW - EDGE_MARGIN)
+  const spaceBelow = window.innerHeight - position.y - EDGE_MARGIN
+  const wouldOverflowBottom = spaceBelow < menuH
+  const clampedTop = wouldOverflowBottom
+    ? Math.max(EDGE_MARGIN, position.y - menuH - 4)
+    : Math.min(position.y + 4, window.innerHeight - menuH - EDGE_MARGIN)
 
   const style: React.CSSProperties = {
-    left: spaceRight < menuW ? Math.max(8, position.x - menuW) : position.x,
-  }
-  if (spaceBelow < menuH) {
-    style.bottom = window.innerHeight - position.y + 8
-  } else {
-    style.top = position.y + 4
+    position: 'fixed',
+    left: clampedX,
+    top: Math.max(EDGE_MARGIN, clampedTop),
   }
 
   useEffect(() => {
@@ -51,11 +59,13 @@ export default function AtCommandMenu({ query, position, onSelect, onClose }: Pr
 
   if (filtered.length === 0) return null
 
-  // Split into 2 columns
   const col1 = filtered.slice(0, Math.ceil(filtered.length / 2))
   const col2 = filtered.slice(Math.ceil(filtered.length / 2))
 
-  return (
+  // Rendered via portal directly under <body> — guarantees `position: fixed`
+  // is always relative to the true viewport, never affected by any ancestor
+  // in the editor tree (transforms, stacking contexts, scroll containers).
+  return createPortal(
     <div ref={ref} className="at-menu at-menu-2col" style={style}>
       <div className="at-menu-header">↯ Insert block</div>
       <div className="at-menu-grid">
@@ -73,6 +83,7 @@ export default function AtCommandMenu({ query, position, onSelect, onClose }: Pr
           </div>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

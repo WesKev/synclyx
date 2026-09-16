@@ -29,7 +29,11 @@ export default function CanvasFAB({ onAction, notes }: Props) {
   const [open, setOpen] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const [search, setSearch] = useState('')
-  const [pos, setPos] = useState({ x: 80, y: window.innerHeight - 120 })
+  // Default spawn point shifted right — was x:80, which sat directly under
+  // the SyncVerse sidebar (17rem/272px) plus the view-switcher rail (44px),
+  // so the FAB and its expanding menu were rendering partially hidden behind
+  // them. 480px clears both with room for the ~288px-wide expanded menu.
+  const [pos, setPos] = useState({ x: 480, y: window.innerHeight - 120 })
   const dragging = useRef(false)
   const dragOffset = useRef({ x: 0, y: 0 })
   const fabRef = useRef<HTMLDivElement>(null)

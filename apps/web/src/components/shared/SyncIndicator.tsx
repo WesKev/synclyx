@@ -25,8 +25,12 @@ export default function SyncIndicator({ status, onSave, label = true }: Props) {
           className="sync-save-btn"
           onClick={onSave}
           title="Save now"
-          disabled={status === 'saving'}
         >
+          {/* Always clickable — a manual flush is safe even mid-'saving',
+              since it just force-commits whatever is currently pending.
+              Previously disabled during 'saving', which — combined with
+              the indicator's long debounce — meant continuous typing kept
+              this button permanently unusable. */}
           Save now
         </button>
       )}

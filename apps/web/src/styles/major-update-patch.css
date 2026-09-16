@@ -1,0 +1,52 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   VIEW-SWITCHER THEME FIX
+   ─────────────────────────────────────────────────────────────────────────
+   The switcher now carries its own local data-theme attribute (set in
+   App.tsx to whichever theme actually applies to the current view — global
+   theme for SyncPad/SyncBoard, svTheme for SyncVerse). These rules replicate
+   the exact color values from styles/index.css's global theme blocks, but
+   scoped ONLY to .view-switcher, so it never depends on — or conflicts
+   with — the root <html> data-theme attribute.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.view-switcher[data-theme="dark"] {
+  background: #160a3a;
+  border-right-color: #2e1660;
+}
+.view-switcher[data-theme="dark"] .view-btn {
+  color: #9b8db0;
+}
+.view-switcher[data-theme="dark"] .view-btn:hover {
+  background: #251356;
+}
+.view-switcher[data-theme="dark"] .view-btn.active {
+  background: #a833b920;
+  color: #a833b9;
+}
+
+.view-switcher[data-theme="light"] {
+  background: #ffffff;
+  border-right-color: #ddd5d5;
+}
+.view-switcher[data-theme="light"] .view-btn {
+  color: #6b5b7e;
+}
+.view-switcher[data-theme="light"] .view-btn:hover {
+  background: #ede8e8;
+}
+.view-switcher[data-theme="light"] .view-btn.active {
+  background: #a833b915;
+  color: #a833b9;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   FLOATING MENU Z-INDEX HARDENING
+   ─────────────────────────────────────────────────────────────────────────
+   AtCommandMenu and NoteLinkMenu now render via createPortal directly under
+   <body>, guaranteeing position:fixed is always relative to the true
+   viewport. This keeps them above the view-switcher (z-index 500) and any
+   other floating UI (FAB) with room to spare.
+   ───────────────────────────────────────────────────────────────────────── */
+.at-menu {
+  z-index: 2000 !important;
+}

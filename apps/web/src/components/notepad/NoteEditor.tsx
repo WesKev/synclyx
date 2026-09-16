@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { useNotesStore, Block, BlockType, ChecklistItem, flushAllPendingNotes } from '../../store/notesStore'
+import { useNotesStore, Block, BlockType, ChecklistItem, flushAllPendingNotesAndCanvases } from '../../store/notesStore'
 import BlockRenderer from './BlockRenderer'
 import AtCommandMenu from './AtCommandMenu'
 import TablePopup from './TablePopup'
@@ -50,7 +50,11 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
   const skipHistoryRef = useRef(false)
 
   // Sync indicator — watches note.updatedAt, shows saving for 5s then saved
-  const { status: syncStatus, markSaved } = useSyncStatus(note?.updatedAt, 5000)
+  // Matches NOTE_CONTENT_DEBOUNCE in notesStore.ts (800ms) — previously this
+  // said 5000, so the indicator claimed "still saving" for 6x longer than the
+  // real write actually took, and (combined with the disabled Save-now button)
+  // made manual save look broken during any continuous typing.
+  const { status: syncStatus, markSaved } = useSyncStatus(note?.updatedAt, 800)
 
   useEffect(() => {
     if (note) { titleRef.current?.focus(); setShowAtMenu(false); setFormatToolbar(null) }
@@ -97,8 +101,8 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
 
   // Manual save — flush to Firestore immediately without waiting for inactivity timer
   const handleManualSave = useCallback(() => {
-    const { _uid, notes } = useNotesStore.getState()
-    if (_uid) flushAllPendingNotes(_uid, notes)
+    const { _uid } = useNotesStore.getState()
+    if (_uid) flushAllPendingNotesAndCanvases(_uid)
     markSaved()
   }, [markSaved])
 

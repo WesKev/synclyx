@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useThemeStore } from './store/themeStore'
 import { useSyncVerseThemeStore } from './store/syncVerseThemeStore'
-import { useNotesStore, flushAllPendingNotes, flushAllPendingCanvases } from './store/notesStore'
+import { useNotesStore, flushAllPendingNotesAndCanvases } from './store/notesStore'
 import { useAuthStore } from './store/authStore'
-import { useSyncBoardStore, flushAllPendingBoardItems } from './store/syncBoardStore'
+import { useSyncBoardStore } from './store/syncBoardStore'
+import { flushAll as flushAllSync } from './lib/syncEngine'
 import Sidebar from './components/shared/Sidebar'
 import NoteEditor from './components/notepad/NoteEditor'
 import FAB from './components/shared/FAB'
@@ -24,20 +25,9 @@ import './styles/codemirror.css'
 import './styles/session-a-patch.css'
 import './styles/hotfix-patch.css'
 import './styles/sv-final-patch.css'
+import './styles/major-update-patch.css'
 
 export type AppView = 'notes' | 'syncverse' | 'syncboard'
-
-/** Flush all pending Firestore writes across all three sections immediately.
- *  Called on view switch and app close so nothing is lost. */
-function flushAll() {
-  const { _uid, notes, canvases } = useNotesStore.getState()
-  const { _uid: boardUid, items } = useSyncBoardStore.getState()
-  if (_uid) {
-    flushAllPendingNotes(_uid, notes)
-    flushAllPendingCanvases(_uid, canvases)
-  }
-  if (boardUid) flushAllPendingBoardItems(boardUid, items)
-}
 
 export default function App() {
   const { theme } = useThemeStore()
@@ -62,7 +52,7 @@ export default function App() {
     else { stopSync(); stopBoardSync() }
   }, [user, startSync, stopSync, startBoardSync, stopBoardSync])
 
-  // Theme
+  // Global theme — drives SyncPad and SyncBoard (everything outside SyncVerse)
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
@@ -96,12 +86,10 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [addNote])
 
-  // ── Flush on app close / tab hidden ─────────────────────────────────────
-  // This ensures the "6th version" (live Firestore state) is always current
-  // even if the user closes the browser without waiting for inactivity timers.
+  // ── Flush everything on app close / tab hidden ────────────────────────────
   useEffect(() => {
-    const handleClose = () => flushAll()
-    const handleVisibility = () => { if (document.visibilityState === 'hidden') flushAll() }
+    const handleClose = () => flushAllSync()
+    const handleVisibility = () => { if (document.visibilityState === 'hidden') flushAllSync() }
     window.addEventListener('beforeunload', handleClose)
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
@@ -112,17 +100,26 @@ export default function App() {
 
   // ── Switch view — flush before switching so nothing is lost ──────────────
   const switchView = (newView: AppView) => {
-    if (newView !== view) flushAll()
+    if (newView !== view) flushAllSync()
     setView(newView)
   }
 
   const activeCanvas = canvases.find(c => c.id === activeCanvasId)
 
+  // ── View-switcher theme fix ────────────────────────────────────────────────
+  // The switcher bar previously always used the global `theme`, even while
+  // viewing SyncVerse — which has its OWN independent theme (svTheme). That's
+  // why you could see a light switcher bar sitting above a dark SyncVerse.
+  // Fix: the switcher gets its own local `data-theme` attribute reflecting
+  // whichever theme actually applies to the current view. See
+  // styles/major-update-patch.css for the scoped color rules this depends on.
+  const switcherTheme = view === 'syncverse' ? svTheme : theme
+
   return (
     <div className="app-shell">
       <FloatingFormat />
 
-      <div className="view-switcher">
+      <div className="view-switcher" data-theme={switcherTheme}>
         <button className={`view-btn ${view === 'notes' ? 'active' : ''}`}
           onClick={() => switchView('notes')} title="SyncPad">📝</button>
         <button className={`view-btn ${view === 'syncverse' ? 'active' : ''}`}

@@ -7,7 +7,7 @@ import {
   EdgeLabelRenderer, BaseEdge, getBezierPath,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useNotesStore, SyncVerseCanvas, Block, BlockType, SyncVerseNode, SyncVerseEdge, flushAllPendingCanvases } from '../../store/notesStore'
+import { useNotesStore, SyncVerseCanvas, Block, BlockType, SyncVerseNode, SyncVerseEdge, flushAllPendingNotesAndCanvases } from '../../store/notesStore'
 import { useSyncVerseThemeStore } from '../../store/syncVerseThemeStore'
 import BlockNode from './BlockNode'
 import StickyNode from './StickyNode'
@@ -18,6 +18,13 @@ import { useSyncStatus } from '../../hooks/useSyncStatus'
 
 const nodeTypes = { block: BlockNode, sticky: StickyNode, note: NoteCardNode }
 const generateId = () => Math.random().toString(36).slice(2, 10)
+
+// Shifted right from the very first spawn point so nodes never appear
+// tucked under the SyncVerse sidebar edge.
+const NODE_SPAWN_BASE_X = 300
+const NODE_SPAWN_RANGE_X = 300
+const NODE_SPAWN_BASE_Y = 150
+const NODE_SPAWN_RANGE_Y = 200
 
 // ─── Helpers: convert React Flow types ↔ store types ─────────────────────────
 function rfNodesToStore(rfNodes: Node[]): SyncVerseNode[] {
@@ -128,7 +135,6 @@ function SyncVerseHeader({ canvas, onRename, syncStatus, onManualSave }: {
         )}
         <span className="syncverse-hint">Drag · Connect · Click line to name or delete</span>
       </div>
-      {/* Sync indicator + manual save */}
       <div className="syncverse-header-right">
         <SyncIndicator status={syncStatus} onSave={onManualSave} label />
       </div>
@@ -155,42 +161,33 @@ function SyncVerseInner({ canvas }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
-  // ── Always-current refs — THE KEY FIX ────────────────────────────────────
-  // Every callback that calls updateCanvas MUST use these refs, not canvas.nodes/edges
-  // from the closure. The closure captures a snapshot at render time; refs are always live.
+  // ── Always-current refs ───────────────────────────────────────────────────
+  // Every callback that calls updateCanvas uses these, never canvas.nodes/edges
+  // from the closure (which is a snapshot frozen at render time).
   const nodesRef = useRef<Node[]>(initialNodes)
   const edgesRef = useRef<Edge[]>(initialEdges)
   useEffect(() => { nodesRef.current = nodes }, [nodes])
   useEffect(() => { edgesRef.current = edges }, [edges])
 
-  // Sync status for cloud indicator — matches 3s debounce
-  const { status: syncStatus, markSaved } = useSyncStatus(canvas.updatedAt, 3000)
+  const { status: syncStatus, markSaved } = useSyncStatus(canvas.updatedAt, 1000)
 
-  // ── Comprehensive save: watches ALL node/edge changes ─────────────────────
-  // This catches everything — drags, keyboard deletes, edge changes, resizes —
-  // not just the specific events we handle explicitly above.
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  // ── Comprehensive save watcher ────────────────────────────────────────────
+  // Catches every node/edge change (drag, delete, resize, connect) that isn't
+  // already handled by a more specific callback below. updateCanvas() itself
+  // now decides immediate-vs-debounced based on whether the change is
+  // structural — see notesStore.ts.
   const isMounted = useRef(false)
-
   useEffect(() => {
-    // Skip initial mount render — no changes to save yet
     if (!isMounted.current) { isMounted.current = true; return }
-    clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      updateCanvas(canvas.id, {
-        nodes: rfNodesToStore(nodesRef.current),
-        edges: rfEdgesToStore(edgesRef.current),
-      })
-    }, 1000) // 1s debounce — fast enough to catch all changes
-    return () => clearTimeout(saveTimerRef.current)
+    updateCanvas(canvas.id, {
+      nodes: rfNodesToStore(nodesRef.current),
+      edges: rfEdgesToStore(edgesRef.current),
+    })
   }, [nodes, edges]) // eslint-disable-line react-hooks/exhaustive-deps
-  // canvas.id and updateCanvas intentionally omitted — stable for component lifetime
 
   // ── Flush immediately on unmount (view switch) ────────────────────────────
-  // Ensures the very last state is saved even if the debounce hasn't fired
   useEffect(() => {
     return () => {
-      clearTimeout(saveTimerRef.current)
       updateCanvas(canvas.id, {
         nodes: rfNodesToStore(nodesRef.current),
         edges: rfEdgesToStore(edgesRef.current),
@@ -198,33 +195,22 @@ function SyncVerseInner({ canvas }: Props) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Auto-version every 1.5 minutes ───────────────────────────────────────
-  // Saves a "before" snapshot of the current canvas state so the user can
-  // always recover the version before they started the current editing session.
-  // On first fire: saves the state as it was when the user opened this canvas.
-  useEffect(() => {
-    const { saveCanvasVersion } = useNotesStore.getState()
-    // Save one version immediately on mount (the "before" state)
-    saveCanvasVersion(canvas.id)
+  // ── NO mount versioning. NO interval versioning. ──────────────────────────
+  // Versions save in exactly two places: canvas switch (handled inside the
+  // store's setActiveCanvas) and the manual "Save now" button below. This is
+  // the direct fix for the bug where opening a canvas on a fresh browser —
+  // before Firestore's real data had arrived — captured empty/stale state as
+  // a "version" and, because saveCanvasVersion writes the WHOLE canvas
+  // document, silently wiped real nodes/edges in the cloud.
 
-    // Then auto-save every 1.5 minutes while editing
-    const interval = setInterval(() => {
-      useNotesStore.getState().saveCanvasVersion(canvas.id)
-    }, 90_000) // 1.5 minutes
-
-    return () => clearInterval(interval)
-  }, [canvas.id])
-
-  // ── Manual save — flushes React Flow state → store → Firestore immediately ─
   const handleManualSave = useCallback(() => {
-    // Sync current React Flow state to store right now (no debounce)
     updateCanvas(canvas.id, {
       nodes: rfNodesToStore(nodesRef.current),
       edges: rfEdgesToStore(edgesRef.current),
     })
-    // Flush to Firestore immediately (bypass the 7s debounce)
-    const { _uid, canvases } = useNotesStore.getState()
-    if (_uid) flushAllPendingCanvases(_uid, canvases)
+    useNotesStore.getState().saveCanvasVersion(canvas.id)
+    const { _uid } = useNotesStore.getState()
+    if (_uid) flushAllPendingNotesAndCanvases(_uid)
     markSaved()
   }, [canvas.id, updateCanvas, markSaved])
 
@@ -232,7 +218,6 @@ function SyncVerseInner({ canvas }: Props) {
     updateCanvas(canvas.id, { edges: rfEdgesToStore(newEdges) })
   }, [canvas.id, updateCanvas])
 
-  // ── Node drag stop — use nodesRef (NOT canvas.nodes) ─────────────────────
   const onNodeDragStop = useCallback((_: any, node: Node) => {
     const updated = nodesRef.current.map(n =>
       n.id === node.id ? { ...n, position: node.position } : n
@@ -241,7 +226,6 @@ function SyncVerseInner({ canvas }: Props) {
     updateCanvas(canvas.id, { nodes: rfNodesToStore(updated) })
   }, [canvas.id, updateCanvas])
 
-  // ── Node resize (dimensions change) — use nodesRef ───────────────────────
   const handleNodesChange = useCallback((changes: any[]) => {
     onNodesChange(changes)
     const dimChanges = changes.filter((c: any) => c.type === 'dimensions' && c.dimensions)
@@ -255,7 +239,6 @@ function SyncVerseInner({ canvas }: Props) {
     }
   }, [onNodesChange, canvas.id, updateCanvas])
 
-  // ── Node delete — use nodesRef + edgesRef ────────────────────────────────
   const onNodesDelete = useCallback((deleted: Node[]) => {
     const ids = new Set(deleted.map(n => n.id))
     const updatedNodes = nodesRef.current.filter(n => !ids.has(n.id))
@@ -266,16 +249,20 @@ function SyncVerseInner({ canvas }: Props) {
     })
   }, [canvas.id, updateCanvas])
 
+  // NOTE: side effects (updateCanvas, a DIFFERENT store's setState) must never
+  // run inside a React setState functional updater — React can invoke that
+  // function more than once, or at an unsafe time, and doing cross-store
+  // writes from inside it is exactly what caused the screen to go blank when
+  // adding a node or connection. Fixed below: compute the new array first,
+  // commit it to React state directly, THEN call the store side effect.
   const onConnect = useCallback((connection: Connection) => {
     const newEdge: Edge = { ...connection, id: generateId(), type: 'synclyx', animated: true }
-    setEdges(eds => {
-      const updated = addEdge(newEdge, eds)
-      saveEdges(updated)
-      return updated
-    })
+    const updated = addEdge(newEdge, edgesRef.current)
+    edgesRef.current = updated
+    setEdges(updated)
+    saveEdges(updated)
   }, [saveEdges])
 
-  // ── Save viewport when user finishes panning/zooming ─────────────────────
   const onMoveEnd = useCallback((_: any, viewport: any) => {
     updateCanvas(canvas.id, { viewport: { x: viewport.x, y: viewport.y, zoom: viewport.zoom } })
   }, [canvas.id, updateCanvas])
@@ -285,36 +272,33 @@ function SyncVerseInner({ canvas }: Props) {
   }, [])
 
   const handleEdgeLabelSave = (edgeId: string, label: string) => {
-    setEdges(eds => {
-      const updated = eds.map(e => e.id === edgeId ? { ...e, label } : e)
-      saveEdges(updated)
-      return updated
-    })
+    const updated = edgesRef.current.map(e => e.id === edgeId ? { ...e, label } : e)
+    edgesRef.current = updated
+    setEdges(updated)
+    saveEdges(updated)
   }
 
   const handleEdgeDelete = (edgeId: string) => {
-    setEdges(eds => {
-      const updated = eds.filter(e => e.id !== edgeId)
-      saveEdges(updated)
-      return updated
-    })
+    const updated = edgesRef.current.filter(e => e.id !== edgeId)
+    edgesRef.current = updated
+    setEdges(updated)
+    saveEdges(updated)
   }
 
-  // ── Add node — use setNodes functional update so nodesRef is always current ─
   const addNode = useCallback((type: string, data: any) => {
     const id = `node-${generateId()}`
-    const position = { x: 200 + Math.random() * 300, y: 150 + Math.random() * 200 }
+    const position = {
+      x: NODE_SPAWN_BASE_X + Math.random() * NODE_SPAWN_RANGE_X,
+      y: NODE_SPAWN_BASE_Y + Math.random() * NODE_SPAWN_RANGE_Y,
+    }
     const defaultSize = type === 'sticky' ? { width: 200, height: 160 } : { width: 280, height: 180 }
     const newNode: Node = { id, type, position, data, style: defaultSize }
 
-    setNodes(ns => {
-      const updated = [...ns, newNode]
-      nodesRef.current = updated   // update ref synchronously inside callback
-      // Use the complete, up-to-date nodes array — no stale closure
-      updateCanvas(canvas.id, { nodes: rfNodesToStore(updated) })
-      return updated
-    })
-  }, [canvas.id, updateCanvas])
+    const updated = [...nodesRef.current, newNode]
+    nodesRef.current = updated
+    setNodes(updated)
+    updateCanvas(canvas.id, { nodes: rfNodesToStore(updated) })
+  }, [canvas.id, updateCanvas, setNodes])
 
   const handleFABAction = useCallback((action: string, extra?: any) => {
     const blockTypes = ['text','heading','list','checklist','code','image','link','video','audio','file','table']

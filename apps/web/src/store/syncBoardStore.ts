@@ -1,11 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import {
-  collection, doc, setDoc, deleteDoc,
-  onSnapshot, serverTimestamp, writeBatch,
-  type Unsubscribe,
-} from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { listenToSyncBoard, listenToSyncBoardTrash } from '../lib/firestoreSync'
+import { queueWrite, queueDelete, isPending } from '../lib/syncEngine'
 
 export interface SyncBoardItem {
   id: string
@@ -20,10 +16,10 @@ export interface SyncBoardItem {
 }
 
 export interface SyncBoardTrashItem {
-  id: string           // trash entry ID (different from item.id)
-  item: SyncBoardItem  // full item snapshot
+  id: string
+  item: SyncBoardItem
   deletedAt: number
-  expiresAt: number    // deletedAt + 10 days
+  expiresAt: number
 }
 
 interface SyncBoardStore {
@@ -31,7 +27,8 @@ interface SyncBoardStore {
   trash: SyncBoardTrashItem[]
   searchQuery: string
   _uid: string | null
-  _unsub: Unsubscribe | null
+  _unsubs: (() => void)[]
+  _hydrated: boolean
 
   startSync: (uid: string) => void
   stopSync: () => void
@@ -41,7 +38,7 @@ interface SyncBoardStore {
   restoreFromTrash: (trashId: string) => void
   permanentlyDelete: (trashId: string) => void
   emptyTrash: () => void
-  purgeExpired: () => void   // removes items older than 10 days
+  purgeExpired: () => void
   deleteItems: (ids: string[]) => void
   togglePin: (id: string) => void
   clearUnpinned: () => void
@@ -49,10 +46,8 @@ interface SyncBoardStore {
 }
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
-const BOARD_SYNC_DELAY = 2000
+const ITEM_CONTENT_DEBOUNCE = 700  // fastest of the three sections, per design
 const TEN_DAYS = 10 * 24 * 60 * 60 * 1000
-
-const _boardTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 
 function detectType(content: string): SyncBoardItem['type'] {
   if (/^https?:\/\//i.test(content.trim())) return 'link'
@@ -60,50 +55,50 @@ function detectType(content: string): SyncBoardItem['type'] {
   return 'text'
 }
 
-const userCol = (uid: string) => collection(db, 'users', uid, 'syncboard')
-const userDocRef = (uid: string, id: string) => doc(db, 'users', uid, 'syncboard', id)
-const trashCol = (uid: string) => collection(db, 'users', uid, 'syncboard_trash')
-const trashDocRef = (uid: string, id: string) => doc(db, 'users', uid, 'syncboard_trash', id)
-
-function scheduleBoardSave(uid: string, item: SyncBoardItem) {
-  if (_boardTimers[item.id]) clearTimeout(_boardTimers[item.id])
-  _boardTimers[item.id] = setTimeout(() => {
-    setDoc(userDocRef(uid, item.id), { ...item, _updatedAt: serverTimestamp() })
-    delete _boardTimers[item.id]
-  }, BOARD_SYNC_DELAY)
-}
-
-export function flushAllPendingBoardItems(uid: string, items: SyncBoardItem[]) {
-  Object.keys(_boardTimers).forEach(itemId => {
-    clearTimeout(_boardTimers[itemId])
-    delete _boardTimers[itemId]
-    const item = items.find(i => i.id === itemId)
-    if (item) setDoc(userDocRef(uid, item.id), { ...item, _updatedAt: serverTimestamp() })
-  })
-}
-
 export const useSyncBoardStore = create<SyncBoardStore>()(
   persist(
     (set, get) => ({
-      items: [], trash: [], searchQuery: '', _uid: null, _unsub: null,
+      items: [], trash: [], searchQuery: '', _uid: null, _unsubs: [], _hydrated: false,
 
       startSync: (uid) => {
-        get()._unsub?.()
-        const unsub = onSnapshot(userCol(uid), (snap) => {
-          const items = snap.docs
-            .map(d => d.data() as SyncBoardItem)
-            .sort((a, b) => {
-              if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-              return b.createdAt - a.createdAt
-            })
-          set({ items })
-        })
-        set({ _uid: uid, _unsub: unsub })
-        // Purge expired trash on sign-in
+        get()._unsubs.forEach(u => u())
+        set({ _uid: uid, _hydrated: false })
+        const unsubs: (() => void)[] = []
+
+        // ── Main items listener — THIS had zero protection before. Every
+        // snapshot unconditionally overwrote local state, which is why
+        // clips could vanish mid-edit. Now it's pending-aware like notes
+        // and canvases. ─────────────────────────────────────────────────
+        unsubs.push(listenToSyncBoard(uid, (incoming) => {
+          const { items: local } = get()
+          const merged = incoming.map(inItem => {
+            if (isPending(['users', uid, 'syncboard', inItem.id])) {
+              const loc = local.find(i => i.id === inItem.id)
+              if (loc) return loc
+            }
+            return inItem
+          })
+          const fsIds = new Set(incoming.map(i => i.id))
+          const localOnly = local.filter(i => !fsIds.has(i.id) && isPending(['users', uid, 'syncboard', i.id]))
+          const all = [...merged, ...localOnly].sort((a, b) => {
+            if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+            return b.createdAt - a.createdAt
+          })
+          set({ items: all, _hydrated: true })
+        }))
+
+        unsubs.push(listenToSyncBoardTrash(uid, (t) =>
+          set({ trash: t.sort((a, b) => b.deletedAt - a.deletedAt) })
+        ))
+
+        set({ _unsubs: unsubs })
         get().purgeExpired()
       },
 
-      stopSync: () => { get()._unsub?.(); set({ _uid: null, _unsub: null }) },
+      stopSync: () => {
+        get()._unsubs.forEach(u => u())
+        set({ _uid: null, _unsubs: [], _hydrated: false })
+      },
 
       addItem: (content, source = 'manual', deviceName) => {
         if (!content.trim()) return
@@ -116,32 +111,29 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
         }
         set(s => ({ items: [item, ...s.items] }))
         const uid = get()._uid
-        if (uid) setDoc(userDocRef(uid, item.id), { ...item, _updatedAt: serverTimestamp() })
+        // New doc — safe immediately
+        if (uid) queueWrite(['users', uid, 'syncboard', item.id], item, 0)
       },
 
       updateItem: (id, updates) => {
         set(s => ({ items: s.items.map(i => i.id === id ? { ...i, ...updates, updatedAt: Date.now() } : i) }))
         const uid = get()._uid
-        if (uid) { const item = get().items.find(i => i.id === id); if (item) scheduleBoardSave(uid, item) }
+        if (!uid || !get()._hydrated) return
+        const item = get().items.find(i => i.id === id)
+        if (item) queueWrite(['users', uid, 'syncboard', id], item, ITEM_CONTENT_DEBOUNCE)
       },
 
-      // Soft delete — moves to trash for 10 days
+      // Soft delete — moves to trash, propagates to every signed-in device
       moveToTrash: (id) => {
         const item = get().items.find(i => i.id === id)
         if (!item) return
         const now = Date.now()
-        const trashEntry: SyncBoardTrashItem = {
-          id: generateId(), item,
-          deletedAt: now, expiresAt: now + TEN_DAYS,
-        }
-        set(s => ({
-          items: s.items.filter(i => i.id !== id),
-          trash: [trashEntry, ...s.trash],
-        }))
+        const trashEntry: SyncBoardTrashItem = { id: generateId(), item, deletedAt: now, expiresAt: now + TEN_DAYS }
+        set(s => ({ items: s.items.filter(i => i.id !== id), trash: [trashEntry, ...s.trash] }))
         const uid = get()._uid
         if (uid) {
-          deleteDoc(userDocRef(uid, id))
-          setDoc(trashDocRef(uid, trashEntry.id), { ...trashEntry, _updatedAt: serverTimestamp() })
+          queueDelete(['users', uid, 'syncboard', id])
+          queueWrite(['users', uid, 'syncboard_trash', trashEntry.id], trashEntry, 0)
         }
       },
 
@@ -149,32 +141,25 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
         const entry = get().trash.find(t => t.id === trashId)
         if (!entry) return
         const restoredItem = { ...entry.item, updatedAt: Date.now() }
-        set(s => ({
-          items: [restoredItem, ...s.items],
-          trash: s.trash.filter(t => t.id !== trashId),
-        }))
+        set(s => ({ items: [restoredItem, ...s.items], trash: s.trash.filter(t => t.id !== trashId) }))
         const uid = get()._uid
         if (uid) {
-          setDoc(userDocRef(uid, restoredItem.id), { ...restoredItem, _updatedAt: serverTimestamp() })
-          deleteDoc(trashDocRef(uid, trashId))
+          queueWrite(['users', uid, 'syncboard', restoredItem.id], restoredItem, 0)
+          queueDelete(['users', uid, 'syncboard_trash', trashId])
         }
       },
 
       permanentlyDelete: (trashId) => {
         set(s => ({ trash: s.trash.filter(t => t.id !== trashId) }))
         const uid = get()._uid
-        if (uid) deleteDoc(trashDocRef(uid, trashId))
+        if (uid) queueDelete(['users', uid, 'syncboard_trash', trashId])
       },
 
       emptyTrash: () => {
         const ids = get().trash.map(t => t.id)
         set({ trash: [] })
         const uid = get()._uid
-        if (uid && ids.length) {
-          const batch = writeBatch(db)
-          ids.forEach(id => batch.delete(trashDocRef(uid, id)))
-          batch.commit()
-        }
+        if (uid) ids.forEach(id => queueDelete(['users', uid, 'syncboard_trash', id]))
       },
 
       purgeExpired: () => {
@@ -183,22 +168,12 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
         if (!expired.length) return
         set(s => ({ trash: s.trash.filter(t => t.expiresAt > now) }))
         const uid = get()._uid
-        if (uid && expired.length) {
-          const batch = writeBatch(db)
-          expired.forEach(t => batch.delete(trashDocRef(uid, t.id)))
-          batch.commit()
-        }
+        if (uid) expired.forEach(t => queueDelete(['users', uid, 'syncboard_trash', t.id]))
       },
 
       deleteItems: (ids) => {
-        const idSet = new Set(ids)
-        set(s => ({ items: s.items.filter(i => !idSet.has(i.id)) }))
-        const uid = get()._uid
-        if (uid && ids.length) {
-          const batch = writeBatch(db)
-          ids.forEach(id => batch.delete(userDocRef(uid, id)))
-          batch.commit()
-        }
+        // Route through moveToTrash so bulk-selected deletes are recoverable too
+        ids.forEach(id => get().moveToTrash(id))
       },
 
       togglePin: (id) => {
@@ -208,18 +183,12 @@ export const useSyncBoardStore = create<SyncBoardStore>()(
             .sort((a, b) => { if (a.pinned !== b.pinned) return a.pinned ? -1 : 1; return b.createdAt - a.createdAt })
         }))
         const uid = get()._uid
-        if (uid) { const item = get().items.find(i => i.id === id); if (item) scheduleBoardSave(uid, item) }
+        if (uid) { const item = get().items.find(i => i.id === id); if (item) queueWrite(['users', uid, 'syncboard', id], item, 0) }
       },
 
       clearUnpinned: () => {
         const ids = get().items.filter(i => !i.pinned).map(i => i.id)
-        set(s => ({ items: s.items.filter(i => i.pinned) }))
-        const uid = get()._uid
-        if (uid && ids.length) {
-          const batch = writeBatch(db)
-          ids.forEach(id => batch.delete(userDocRef(uid, id)))
-          batch.commit()
-        }
+        ids.forEach(id => get().moveToTrash(id))
       },
 
       setSearchQuery: (q) => set({ searchQuery: q }),

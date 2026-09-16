@@ -1,145 +1,58 @@
 /**
  * firestoreSync.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * All Firestore read/write operations for Synclyx.
+ * Firestore READ (listener) functions only. All WRITES now go through
+ * lib/syncEngine.ts — see that file for why.
+ *
  * Data lives at:
  *   users/{uid}/notes/{noteId}
  *   users/{uid}/notebooks/{notebookId}
  *   users/{uid}/canvases/{canvasId}
  *   users/{uid}/trash/{trashedId}
- *   users/{uid}/meta/settings   ← customTags etc.
- *
- * Strategy: optimistic local update first (Zustand), then Firestore write.
- * Firestore's persistentLocalCache handles offline queuing automatically —
- * if the user is offline, writes are queued and flushed when they reconnect.
+ *   users/{uid}/syncboard/{itemId}
+ *   users/{uid}/syncboard_trash/{trashId}
+ *   users/{uid}/meta/settings
  */
 
-import {
-  collection,
-  doc,
-  setDoc,
-  deleteDoc,
-  onSnapshot,
-  writeBatch,
-  serverTimestamp,
-  type Unsubscribe,
-} from 'firebase/firestore'
+import { collection, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { db } from './firebase'
 import type { Note, Notebook, SyncVerseCanvas, TrashedItem } from '../store/notesStore'
+import type { SyncBoardItem, SyncBoardTrashItem } from '../store/syncBoardStore'
 
-// ─── Collection helpers ───────────────────────────────────────────────────────
+const userCol = (uid: string, col: string) => collection(db, 'users', uid, col)
 
-const userCol = (uid: string, col: string) =>
-  collection(db, 'users', uid, col)
-
-const userDoc = (uid: string, col: string, id: string) =>
-  doc(db, 'users', uid, col, id)
-
-// ─── Notes ───────────────────────────────────────────────────────────────────
-
-export function listenToNotes(
-  uid: string,
-  onData: (notes: Note[]) => void
-): Unsubscribe {
+export function listenToNotes(uid: string, onData: (notes: Note[]) => void): Unsubscribe {
   return onSnapshot(userCol(uid, 'notes'), (snap) => {
-    const notes = snap.docs.map(d => d.data() as Note)
-    onData(notes)
+    onData(snap.docs.map(d => d.data() as Note))
   })
 }
 
-export async function saveNote(uid: string, note: Note): Promise<void> {
-  await setDoc(userDoc(uid, 'notes', note.id), {
-    ...note,
-    _updatedAt: serverTimestamp(),
-  })
-}
-
-export async function deleteNoteFromFirestore(uid: string, noteId: string): Promise<void> {
-  await deleteDoc(userDoc(uid, 'notes', noteId))
-}
-
-// ─── Notebooks ───────────────────────────────────────────────────────────────
-
-export function listenToNotebooks(
-  uid: string,
-  onData: (notebooks: Notebook[]) => void
-): Unsubscribe {
+export function listenToNotebooks(uid: string, onData: (notebooks: Notebook[]) => void): Unsubscribe {
   return onSnapshot(userCol(uid, 'notebooks'), (snap) => {
-    const notebooks = snap.docs.map(d => d.data() as Notebook)
-    onData(notebooks)
+    onData(snap.docs.map(d => d.data() as Notebook))
   })
 }
 
-export async function saveNotebook(uid: string, notebook: Notebook): Promise<void> {
-  await setDoc(userDoc(uid, 'notebooks', notebook.id), {
-    ...notebook,
-    _updatedAt: serverTimestamp(),
-  })
-}
-
-export async function deleteNotebookFromFirestore(uid: string, notebookId: string): Promise<void> {
-  await deleteDoc(userDoc(uid, 'notebooks', notebookId))
-}
-
-// ─── Canvases ────────────────────────────────────────────────────────────────
-
-export function listenToCanvases(
-  uid: string,
-  onData: (canvases: SyncVerseCanvas[]) => void
-): Unsubscribe {
+export function listenToCanvases(uid: string, onData: (canvases: SyncVerseCanvas[]) => void): Unsubscribe {
   return onSnapshot(userCol(uid, 'canvases'), (snap) => {
-    const canvases = snap.docs.map(d => d.data() as SyncVerseCanvas)
-    onData(canvases)
+    onData(snap.docs.map(d => d.data() as SyncVerseCanvas))
   })
 }
 
-export async function saveCanvas(uid: string, canvas: SyncVerseCanvas): Promise<void> {
-  await setDoc(userDoc(uid, 'canvases', canvas.id), {
-    ...canvas,
-    _updatedAt: serverTimestamp(),
-  })
-}
-
-export async function deleteCanvasFromFirestore(uid: string, canvasId: string): Promise<void> {
-  await deleteDoc(userDoc(uid, 'canvases', canvasId))
-}
-
-// ─── Trash ───────────────────────────────────────────────────────────────────
-
-export function listenToTrash(
-  uid: string,
-  onData: (trash: TrashedItem[]) => void
-): Unsubscribe {
+export function listenToTrash(uid: string, onData: (trash: TrashedItem[]) => void): Unsubscribe {
   return onSnapshot(userCol(uid, 'trash'), (snap) => {
-    const trash = snap.docs.map(d => d.data() as TrashedItem)
-    onData(trash)
+    onData(snap.docs.map(d => d.data() as TrashedItem))
   })
 }
 
-export async function saveTrashItem(uid: string, item: TrashedItem): Promise<void> {
-  await setDoc(userDoc(uid, 'trash', item.id), {
-    ...item,
-    _updatedAt: serverTimestamp(),
+export function listenToSyncBoard(uid: string, onData: (items: SyncBoardItem[]) => void): Unsubscribe {
+  return onSnapshot(userCol(uid, 'syncboard'), (snap) => {
+    onData(snap.docs.map(d => d.data() as SyncBoardItem))
   })
 }
 
-export async function deleteTrashItem(uid: string, trashedId: string): Promise<void> {
-  await deleteDoc(userDoc(uid, 'trash', trashedId))
-}
-
-export async function emptyTrashInFirestore(uid: string, trashIds: string[]): Promise<void> {
-  if (trashIds.length === 0) return
-  const batch = writeBatch(db)
-  trashIds.forEach(id => batch.delete(userDoc(uid, 'trash', id)))
-  await batch.commit()
-}
-
-// ─── Meta (customTags etc.) ──────────────────────────────────────────────────
-
-export async function saveCustomTags(uid: string, customTags: string[]): Promise<void> {
-  await setDoc(
-    doc(db, 'users', uid, 'meta', 'settings'),
-    { customTags, _updatedAt: serverTimestamp() },
-    { merge: true }
-  )
+export function listenToSyncBoardTrash(uid: string, onData: (items: SyncBoardTrashItem[]) => void): Unsubscribe {
+  return onSnapshot(userCol(uid, 'syncboard_trash'), (snap) => {
+    onData(snap.docs.map(d => d.data() as SyncBoardTrashItem))
+  })
 }
