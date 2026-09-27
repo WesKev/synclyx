@@ -25,6 +25,36 @@ const GOOGLE_FONTS = [
 
 interface HistoryEntry { blocks: Block[]; title: string }
 
+/*
+ * -- Undo/Redo architecture --------------------------------------------------
+ *
+ * Previously EVERY keystroke pushed a full deep-cloned snapshot of the note's
+ * blocks onto our own history stack, capped at 50 entries -- and the global
+ * Ctrl+Z handler unconditionally called e.preventDefault(), which silently
+ * hijacked the browser's own built-in undo for every textarea/input on the
+ * page. Two consequences: (1) undo/redo felt "coarse" because whichever
+ * block last changed -- even by one whole block being added or removed --
+ * sat in the same flat stack as single-character edits, and (2) the native,
+ * free, already word/pause-boundary-granular undo every browser ships with
+ * for text fields never got a chance to run.
+ *
+ * Fixed by splitting into two clearly separate layers:
+ *
+ *   1. TEXT EDITING (typing inside a block or the title) -- handled entirely
+ *      by the browser's own native undo stack. We simply stop intercepting
+ *      Ctrl+Z/Ctrl+Y while focus is inside a text field. This is genuinely
+ *      word-level (browsers group undo steps at typing pauses/word
+ *      boundaries) and needs zero code from us.
+ *
+ *   2. STRUCTURAL CHANGES (add/remove a block, insert media, change a
+ *      block's type) -- our own `history` stack, used by the toolbar undo/redo
+ *      buttons and by Ctrl+Z/Y when focus is NOT inside a text field.
+ *      A "checkpoint" is also pushed when a text/heading block loses focus
+ *      if its content actually changed during that editing session -- so the
+ *      toolbar buttons can still undo "my last edit to this paragraph" as
+ *      one meaningful step, without recording every keystroke.
+ */
+
 export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () => void }) {
   const { notes, activeNoteId, updateNote, togglePin, lockedItems = {}, moveToTrash } = useNotesStore()
   const note = notes.find(n => n.id === activeNoteId)
@@ -53,11 +83,12 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
   const lastEnterTime = useRef(0)
   const skipHistoryRef = useRef(false)
 
-  // Sync indicator — watches note.updatedAt, shows saving for 5s then saved
-  // Matches NOTE_CONTENT_DEBOUNCE in notesStore.ts (800ms) — previously this
-  // said 5000, so the indicator claimed "still saving" for 6x longer than the
-  // real write actually took, and (combined with the disabled Save-now button)
-  // made manual save look broken during any continuous typing.
+  // Content each text field held at the moment it gained focus, keyed by
+  // block id -- compared on blur to decide whether a checkpoint is worth
+  // recording. Cleared per field once compared; never grows unbounded.
+  const contentAtFocusRef = useRef<Record<string, string>>({})
+  const titleAtFocusRef = useRef<string | null>(null)
+
   const { status: syncStatus, markSaved } = useSyncStatus(note?.updatedAt, 800)
 
   useEffect(() => {
@@ -76,13 +107,15 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     }
   }, [note?.font])
 
+  // Structural stack -- 100 checkpoints now (not per-keystroke), so this
+  // comfortably covers a long editing session.
   const pushHistory = useCallback((blocks: Block[], title: string) => {
     if (skipHistoryRef.current) return
     setHistory(h => {
       const trimmed = h.slice(0, historyIdx + 1)
-      return [...trimmed, { blocks: JSON.parse(JSON.stringify(blocks)), title }].slice(-50)
+      return [...trimmed, { blocks: JSON.parse(JSON.stringify(blocks)), title }].slice(-100)
     })
-    setHistoryIdx(i => Math.min(i + 1, 49))
+    setHistoryIdx(i => Math.min(i + 1, 99))
   }, [historyIdx])
 
   const undo = useCallback(() => {
@@ -103,18 +136,30 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     setTimeout(() => { skipHistoryRef.current = false }, 50)
   }, [historyIdx, history, note, updateNote])
 
-  // Manual save — flush to Firestore immediately without waiting for inactivity timer
   const handleManualSave = useCallback(() => {
     const { _uid } = useNotesStore.getState()
     if (_uid) flushAllPendingNotesAndCanvases(_uid)
     markSaved()
   }, [markSaved])
 
+  // -- Global Ctrl+Z / Ctrl+Y ---------------------------------------------
+  // Only intercepted when focus is NOT inside a text field -- see the big
+  // comment above. Inside a textarea/input, we do nothing at all and let the
+  // browser's own native undo/redo run exactly as it would on any web page.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo() }
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleManualSave() }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleManualSave(); return }
+
+      const isCtrlZ = (e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey
+      const isCtrlY = (e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))
+      if (!isCtrlZ && !isCtrlY) return
+
+      const active = document.activeElement
+      const isTextField = active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
+      if (isTextField) return // native undo/redo handles this field
+
+      e.preventDefault()
+      if (isCtrlZ) undo(); else redo()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -133,8 +178,43 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
   )
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // No pushHistory here -- native undo owns title typing, same as blocks.
     updateNote(note.id, { title: e.target.value })
-    pushHistory(note.blocks, e.target.value)
+  }
+
+  const handleTitleFocus = () => { titleAtFocusRef.current = note.title }
+  const handleTitleBlur = () => {
+    const before = titleAtFocusRef.current
+    titleAtFocusRef.current = null
+    if (before === null || before === note.title) return
+    const fresh = useNotesStore.getState().notes.find(n => n.id === activeNoteId)
+    if (fresh) pushHistory(fresh.blocks, fresh.title)
+  }
+
+  // -- Checkpoint on blur -- delegated at the block-list level ------------
+  // Any focusable field inside .editor-blocks that carries data-block-id
+  // gets this for free: the content it held at focus-time is compared to
+  // what it holds on blur, and a single structural checkpoint is recorded
+  // only if something actually changed.
+  const handleBlocksFocus = (e: React.FocusEvent) => {
+    const target = e.target as HTMLElement
+    const blockId = target.dataset.blockId
+    if (!blockId) return
+    const val = (target as HTMLTextAreaElement | HTMLInputElement).value
+    contentAtFocusRef.current[blockId] = val
+  }
+
+  const handleBlocksBlur = (e: React.FocusEvent) => {
+    const target = e.target as HTMLElement
+    const blockId = target.dataset.blockId
+    if (!blockId) return
+    const before = contentAtFocusRef.current[blockId]
+    delete contentAtFocusRef.current[blockId]
+    if (before === undefined) return
+    const after = (target as HTMLTextAreaElement | HTMLInputElement).value
+    if (before === after) return
+    const fresh = useNotesStore.getState().notes.find(n => n.id === activeNoteId)
+    if (fresh) pushHistory(fresh.blocks, fresh.title)
   }
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>, blockId: string) => {
@@ -209,10 +289,11 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     setFormatToolbar({ x: rect.left + rect.width / 2, y: rect.top - 8 })
   }
 
+  // No pushHistory here anymore -- typing relies entirely on native undo.
+  // A checkpoint is recorded separately, once, when the field blurs.
   const updateBlockContent = (blockId: string, content: string) => {
     const updated = note.blocks.map(b => b.id === blockId ? { ...b, content } : b)
     updateNote(note.id, { blocks: updated })
-    pushHistory(updated, note.title)
   }
 
   const addBlock = (type: BlockType, afterId?: string, meta?: Record<string, string>) => {
@@ -232,16 +313,15 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       blocks.splice(insertIdx + 1, 0, follower)
     }
     updateNote(note.id, { blocks })
-    pushHistory(blocks, note.title)
+    pushHistory(blocks, note.title) // structural -- always checkpointed
   }
 
   const removeBlock = (blockId: string) => {
     const updated = note.blocks.filter(b => b.id !== blockId)
     updateNote(note.id, { blocks: updated })
-    pushHistory(updated, note.title)
+    pushHistory(updated, note.title) // structural -- always checkpointed
   }
 
-  // Single-call handleAtSelect — fixes the stale closure double-write bug
   const handleAtSelect = (type: BlockType) => {
     setShowAtMenu(false)
     const freshNote = useNotesStore.getState().notes.find(n => n.id === activeNoteId)
@@ -265,8 +345,6 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
         const file = (e.target as HTMLInputElement).files?.[0]
         if (!file) return
 
-        // Insert the block straight away with a local preview so the editor
-        // feels instant, then swap in the real hosted URL once upload finishes.
         const localPreview = URL.createObjectURL(file)
         const blockId = generateId()
         const latestNote = useNotesStore.getState().notes.find(n => n.id === activeNoteId)
@@ -282,10 +360,8 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
         if (idx !== -1) latestBlocks.splice(idx + 1, 0, newBlock, follower)
         else latestBlocks.push(newBlock, follower)
         updateNote(latestNote.id, { blocks: latestBlocks })
+        pushHistory(latestBlocks, latestNote.title) // structural -- a block appeared
 
-        // A blob: URL only exists inside THIS browser tab — it means nothing
-        // on another device, which is why media never used to sync. Upload to
-        // Cloudinary and store the real URL instead.
         if (!user) {
           setUploadStatus({ name: file.name, progress: 0, error: 'Sign in to upload files so they sync across devices' })
           setTimeout(() => setUploadStatus(null), 5000)
@@ -335,7 +411,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       if (type !== 'heading') blocks.push(follower)
     }
     updateNote(freshNote.id, { blocks })
-    pushHistory(blocks, freshNote.title)
+    pushHistory(blocks, freshNote.title) // structural -- a block appeared
   }
 
   return (
@@ -346,13 +422,12 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       {!zenMode && (
         <div className="editor-toolbar">
           <div className="editor-toolbar-left">
-            <button className="toolbar-btn" onClick={undo} title="Undo (Ctrl+Z)" disabled={historyIdx <= 0}>↩</button>
-            <button className="toolbar-btn" onClick={redo} title="Redo (Ctrl+Y)" disabled={historyIdx >= history.length - 1}>↪</button>
+            <button className="toolbar-btn" onClick={undo} title="Undo last change (Ctrl+Z outside a text field)" disabled={historyIdx <= 0}>↩</button>
+            <button className="toolbar-btn" onClick={redo} title="Redo (Ctrl+Y outside a text field)" disabled={historyIdx >= history.length - 1}>↪</button>
             <div className="toolbar-divider" />
             <TagInput note={note} onUpdate={(tags) => updateNote(note.id, { tags })} />
           </div>
           <div className="editor-toolbar-right">
-            {/* Sync indicator with manual save */}
             <SyncIndicator status={syncStatus} onSave={handleManualSave} label />
             <div className="toolbar-divider" />
             <button className={`toolbar-btn ${note.pinned ? 'active' : ''}`} onClick={() => togglePin(note.id)} title="Pin">📌</button>
@@ -392,9 +467,15 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
       {zenMode && <button className="zen-exit" onClick={() => setZenMode(false)}>Exit Zen ◎</button>}
 
       <input ref={titleRef} className="editor-title" value={note.title}
-        onChange={handleTitleChange} placeholder="Note title" />
+        onChange={handleTitleChange}
+        onFocus={handleTitleFocus}
+        onBlur={handleTitleBlur}
+        placeholder="Note title" />
 
-      <div className="editor-blocks" onClick={() => { setShowAtMenu(false); setShowFontPicker(false) }}>
+      <div className="editor-blocks"
+        onClick={() => { setShowAtMenu(false); setShowFontPicker(false) }}
+        onFocus={handleBlocksFocus}
+        onBlur={handleBlocksBlur}>
         {note.blocks.length === 0 && (
           <textarea className="block-text empty-prompt"
             placeholder="Start writing or type @ to insert a block..."

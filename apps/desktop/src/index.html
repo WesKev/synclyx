@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Synclyx Desktop</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Sign-in view -->
+  <div id="signin-view" class="view">
+    <div class="logo">⚡ Synclyx</div>
+    <p class="subtitle">Sign in to start watching your clipboard</p>
+
+    <div id="signin-error" class="error hidden"></div>
+
+    <label>Email</label>
+    <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+
+    <label>Password</label>
+    <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+
+    <button id="signin-btn">Sign In</button>
+
+    <p class="hint">Use the same email/password account you use on the Synclyx web app.</p>
+  </div>
+
+  <!-- Watching view -->
+  <div id="watching-view" class="view hidden">
+    <div class="status-header">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Watching clipboard</span>
+    </div>
+
+    <div class="account-line" id="account-line"></div>
+    <div class="device-line" id="device-line"></div>
+
+    <div class="recent-header">Recently captured</div>
+    <div id="recent-list" class="recent-list">
+      <div class="recent-empty">Copy something to see it appear here</div>
+    </div>
+
+    <button id="signout-btn" class="secondary">Sign Out</button>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

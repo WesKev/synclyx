@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Synclyx",
+    "slug": "synclyx-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0b032d",
+    "android": {
+      "package": "com.synclyx.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b032d"
+      },
+      "permissions": [
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_DATA_SYNC",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": ["text/*"]
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#a833b9"
+        }
+      ]
+    ]
+  }
+}

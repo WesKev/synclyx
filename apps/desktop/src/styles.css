@@ -1,0 +1,157 @@
+:root {
+  --primary: #0b032d;
+  --secondary: #a833b9;
+  --tertiary: #f1eded;
+  --bg-elevated: #160a3a;
+  --border: #2e1660;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--primary);
+  color: var(--tertiary);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.view { padding: 1.75rem; height: 100%; }
+.hidden { display: none !important; }
+
+/* ── Sign-in view ── */
+.logo {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  text-align: center;
+}
+.subtitle {
+  font-size: 0.8rem;
+  color: rgba(241, 237, 237, 0.6);
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+label {
+  font-size: 0.75rem;
+  color: rgba(241, 237, 237, 0.7);
+  display: block;
+  margin-bottom: 0.3rem;
+  margin-top: 0.9rem;
+}
+input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  color: var(--tertiary);
+  font-size: 0.875rem;
+}
+input:focus { outline: none; border-color: var(--secondary); }
+
+button {
+  width: 100%;
+  margin-top: 1.25rem;
+  padding: 0.65rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--secondary);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { filter: brightness(1.1); }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+button.secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: rgba(241, 237, 237, 0.7);
+  margin-top: 1.5rem;
+}
+button.secondary:hover { border-color: #ff6b6b; color: #ff6b6b; }
+
+.hint {
+  font-size: 0.7rem;
+  color: rgba(241, 237, 237, 0.4);
+  margin-top: 1rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.error {
+  background: rgba(220, 53, 69, 0.15);
+  border: 1px solid rgba(220, 53, 69, 0.4);
+  color: #ff9aa6;
+  font-size: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ── Watching view ── */
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.status-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #666;
+}
+.status-dot.active { background: #4caf50; box-shadow: 0 0 0.5rem #4caf50; }
+.status-dot.paused { background: #ffc107; }
+#status-text { font-size: 0.9rem; font-weight: 600; }
+
+.account-line, .device-line {
+  font-size: 0.75rem;
+  color: rgba(241, 237, 237, 0.6);
+  margin-bottom: 0.2rem;
+}
+
+.recent-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(241, 237, 237, 0.4);
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 15rem;
+  overflow-y: auto;
+}
+
+.recent-empty {
+  font-size: 0.75rem;
+  color: rgba(241, 237, 237, 0.35);
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.75rem;
+}
+.recent-icon { flex-shrink: 0; }
+.recent-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
