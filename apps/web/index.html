@@ -6,6 +6,15 @@
     <meta name="theme-color" content="#0f0f0f" />
     <link rel="manifest" href="/manifest.json" />
     <title>Synclyx</title>
+
+    <!-- Static defaults for crawlers that don't run JS (WhatsApp, Facebook,
+         Twitter/X) — a shared note/canvas's SharePage.tsx overrides these
+         dynamically for real browsers, but those specific crawlers only
+         ever see what's here in the raw HTML. See setShareMeta.ts. -->
+    <meta property="og:site_name" content="Synclyx" />
+    <meta property="og:title" content="Synclyx" />
+    <meta property="og:description" content="Notes, canvas, and clipboard sync — all in one place." />
+    <meta property="og:type" content="website" />
   </head>
   <body>
     <div id="root"></div>

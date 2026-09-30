@@ -1,0 +1,54 @@
+.share-overlay {
+  position: fixed; inset: 0; background: rgba(11,3,45,0.65);
+  backdrop-filter: blur(0.25rem); display: flex; align-items: center;
+  justify-content: center; z-index: 9999; padding: 1rem;
+}
+.share-dialog {
+  width: min(26rem, 100%); background: var(--bg-surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: 0 2rem 4rem rgba(0,0,0,0.45); overflow: hidden;
+}
+.share-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated); font-weight: 700; font-size: 0.95rem;
+}
+.share-close {
+  background: transparent; border: none; color: var(--text-muted);
+  font-size: 1.4rem; cursor: pointer; padding: 0 0.4rem; line-height: 1;
+}
+.share-close:hover { color: var(--text); }
+.share-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+
+.share-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.share-toggle-label { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+.share-toggle-sub { font-size: 0.75rem; color: var(--text-faint); margin-top: 0.15rem; }
+
+.share-switch {
+  width: 2.75rem; height: 1.5rem; border-radius: 1rem; border: none;
+  background: var(--border); position: relative; cursor: pointer;
+  transition: background 0.2s ease; flex-shrink: 0;
+}
+.share-switch.on { background: var(--accent); }
+.share-switch-knob {
+  position: absolute; top: 0.15rem; left: 0.15rem;
+  width: 1.2rem; height: 1.2rem; border-radius: 50%;
+  background: #fff; transition: transform 0.2s ease;
+}
+.share-switch.on .share-switch-knob { transform: translateX(1.25rem); }
+
+.share-link-row { display: flex; gap: 0.5rem; }
+.share-link-input {
+  flex: 1; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.5rem 0.7rem;
+  color: var(--text); font-size: 0.8rem; font-family: monospace;
+}
+.share-copy-btn {
+  font-size: 0.8rem; font-weight: 600; color: #fff;
+  background: var(--accent); border: none; border-radius: var(--radius-sm);
+  padding: 0.5rem 0.9rem; cursor: pointer; white-space: nowrap;
+  transition: filter 0.15s ease;
+}
+.share-copy-btn:hover { filter: brightness(1.1); }
+
+.share-hint { font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; }

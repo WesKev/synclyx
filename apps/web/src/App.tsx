@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useThemeStore } from './store/themeStore'
 import { useSyncVerseThemeStore } from './store/syncVerseThemeStore'
 import { useNotesStore, flushAllPendingNotesAndCanvases } from './store/notesStore'
@@ -14,6 +15,7 @@ import FloatingFormat from './components/shared/FloatingFormat'
 import AuthModal from './components/auth/AuthModal'
 import AccountModal from './components/account/AccountModal'
 import SyncBoard from './components/syncboard/SyncBoard'
+import SharePage from './components/share/SharePage'
 import './styles/index.css'
 import './styles/layout.css'
 import './styles/sidebar.css'
@@ -27,10 +29,14 @@ import './styles/hotfix-patch.css'
 import './styles/sv-final-patch.css'
 import './styles/major-update-patch.css'
 import './styles/session-b-patch.css'
+import './styles/share-feature-patch.css'
 
 export type AppView = 'notes' | 'syncverse' | 'syncboard'
 
-export default function App() {
+// The whole authenticated app, exactly as it worked before — just renamed
+// so it can sit alongside SharePage as a route instead of being the only
+// thing App ever renders. Nothing inside this function changed.
+function MainApp() {
   const { theme } = useThemeStore()
   const { theme: svTheme } = useSyncVerseThemeStore()
   const { canvases, activeCanvasId, addNote, startSync, stopSync } = useNotesStore()
@@ -182,5 +188,20 @@ export default function App() {
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
       <AccountModal isOpen={accountOpen} onClose={() => setAccountOpen(false)} />
     </div>
+  )
+}
+
+// ── Root export ────────────────────────────────────────────────────────────
+// /share/:shareId is the only route that doesn't require MainApp's full
+// authenticated shell — it's what a public, signed-out viewer actually
+// lands on. Everything else still goes through MainApp exactly as before.
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/share/:shareId" element={<SharePage />} />
+        <Route path="*" element={<MainApp />} />
+      </Routes>
+    </BrowserRouter>
   )
 }

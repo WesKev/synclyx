@@ -15,6 +15,8 @@ import NoteCardNode from './NoteCardNode'
 import CanvasFAB from './CanvasFAB'
 import SyncIndicator from '../shared/SyncIndicator'
 import { useSyncStatus } from '../../hooks/useSyncStatus'
+import ShareDialog from '../share/ShareDialog'
+import { useAuthStore } from '../../store/authStore'
 
 const nodeTypes = { block: BlockNode, sticky: StickyNode, note: NoteCardNode }
 const generateId = () => Math.random().toString(36).slice(2, 10)
@@ -115,6 +117,9 @@ function SyncVerseHeader({ canvas, onRename, syncStatus, onManualSave }: {
 }) {
   const [editing, setEditing] = React.useState(false)
   const [val, setVal] = React.useState(canvas.name)
+  const [showShareDialog, setShowShareDialog] = React.useState(false)
+  const { user } = useAuthStore()
+  const { toggleCanvasPublicLink } = useNotesStore()
 
   return (
     <div className="syncverse-header">
@@ -137,7 +142,18 @@ function SyncVerseHeader({ canvas, onRename, syncStatus, onManualSave }: {
       </div>
       <div className="syncverse-header-right">
         <SyncIndicator status={syncStatus} onSave={onManualSave} label />
+        <button className="nodrag nopan sv-share-btn" onClick={() => setShowShareDialog(true)} title="Share">🔗</button>
       </div>
+      {showShareDialog && (
+        <ShareDialog
+          itemLabel="canvas"
+          title={canvas.name}
+          isPublic={!!canvas.isPublic}
+          shareId={canvas.shareId}
+          onToggle={() => toggleCanvasPublicLink(canvas.id, user?.displayName || user?.email?.split('@')[0] || 'a Synclyx user')}
+          onClose={() => setShowShareDialog(false)}
+        />
+      )}
     </div>
   )
 }

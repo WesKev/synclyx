@@ -13,6 +13,7 @@ import { LockSetup, UnlockPrompt } from '../shared/PasswordLock'
 import SyncIndicator from '../shared/SyncIndicator'
 import { uploadFile } from '../../lib/storageUpload'
 import { useAuthStore } from '../../store/authStore'
+import ShareDialog from '../share/ShareDialog'
 import { useSyncStatus } from '../../hooks/useSyncStatus'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
@@ -56,7 +57,8 @@ interface HistoryEntry { blocks: Block[]; title: string }
  */
 
 export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () => void }) {
-  const { notes, activeNoteId, updateNote, togglePin, lockedItems = {}, moveToTrash } = useNotesStore()
+  const { notes, activeNoteId, updateNote, togglePin, lockedItems = {}, moveToTrash, toggleNotePublicLink } = useNotesStore()
+  const [showShareDialog, setShowShareDialog] = useState(false)
   const note = notes.find(n => n.id === activeNoteId)
   const { user } = useAuthStore()
   const [uploadStatus, setUploadStatus] = useState<{ name: string; progress: number; error?: string } | null>(null)
@@ -459,6 +461,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
             </div>
             <button className="toolbar-btn" onClick={() => setShowVersionHistory(true)} title="Version history">🕐</button>
             <button className={`toolbar-btn ${zenMode ? 'active' : ''}`} onClick={() => setZenMode(z => !z)} title="Zen mode">◎</button>
+            <button className="toolbar-btn" onClick={() => setShowShareDialog(true)} title="Share">🔗</button>
             <button className="toolbar-btn export-btn" onClick={() => setShowExportModal(true)}>↑ Export</button>
           </div>
         </div>
@@ -538,6 +541,16 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
         </div>
       )}
       {showExportModal && <ExportModal note={note} onClose={() => setShowExportModal(false)} />}
+      {showShareDialog && (
+        <ShareDialog
+          itemLabel="note"
+          title={note.title}
+          isPublic={!!note.isPublic}
+          shareId={note.shareId}
+          onToggle={() => toggleNotePublicLink(note.id, user?.displayName || user?.email?.split('@')[0] || 'a Synclyx user')}
+          onClose={() => setShowShareDialog(false)}
+        />
+      )}
       {showVersionHistory && <VersionHistoryModal note={note} onClose={() => setShowVersionHistory(false)} />}
       {showLockSetup && <LockSetup itemId={note.id} itemTitle={note.title} onClose={() => setShowLockSetup(false)} />}
       {isLocked && (

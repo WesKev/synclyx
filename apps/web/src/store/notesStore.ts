@@ -19,6 +19,16 @@ export interface Note {
   id: string; title: string; blocks: Block[]; tags: string[]
   pinned: boolean; notebookId?: string; linkedNotes: string[]
   font?: string; versions: NoteVersion[]; createdAt: number; updatedAt: number
+  /** Stable random token used in the public share URL, generated once on
+   *  first share and kept even if the link is later turned off — turning
+   *  it back on restores the SAME link rather than issuing a new one. */
+  shareId?: string
+  /** Whether the public link (if one exists) is currently active. */
+  isPublic?: boolean
+  /** Owner's display name, stamped at share-time — a public unauthenticated
+   *  viewer has no way to look up another user's profile, so this is
+   *  captured redundantly onto the document rather than looked up live. */
+  sharedByName?: string
 }
 export interface Notebook { id: string; name: string; color: string; createdAt: number }
 export interface TrashedItem {
@@ -46,6 +56,10 @@ export interface SyncVerseCanvas {
   /** SyncPad note holding editable copies of this canvas's table/code blocks.
    *  Created lazily the first time the user clicks "Edit in SyncPad". */
   companionNoteId?: string
+  /** Same public-link model as Note.shareId / Note.isPublic — see there. */
+  shareId?: string
+  isPublic?: boolean
+  sharedByName?: string
   createdAt: number; updatedAt: number
 }
 
@@ -63,6 +77,16 @@ const NOTE_CONTENT_DEBOUNCE = 800     // typing inside a note
 const CANVAS_COSMETIC_DEBOUNCE = 800  // viewport pan/zoom, rename — not structural
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
+
+// Public share tokens get a longer, wider-alphabet ID than internal doc
+// IDs — this one is exposed in a URL anyone can see, so it deliberately
+// isn't as guessable/short as the 8-char internal generateId().
+const SHARE_ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+function generateShareId(): string {
+  let out = ''
+  for (let i = 0; i < 16; i++) out += SHARE_ID_CHARS[Math.floor(Math.random() * SHARE_ID_CHARS.length)]
+  return out
+}
 
 function makeNoteVersion(note: Note): NoteVersion {
   return { id: generateId(), savedAt: Date.now(), title: note.title, blocks: JSON.parse(JSON.stringify(note.blocks)) }
@@ -152,6 +176,12 @@ interface NotesStore {
   /** Find (or create on first use) the SyncPad note that holds the editable
    *  copies of a canvas's table and code blocks. Returns the note id. */
   getOrCreateCompanionNote: (canvasId: string) => string | null
+  /** Toggles a note/canvas's public link on/off. Generates a shareId on
+   *  first use and keeps it stable afterward — turning the link off and
+   *  back on restores the SAME URL rather than issuing a new one. Returns
+   *  the shareId when now public, or null when now private. */
+  toggleNotePublicLink: (id: string, ownerName: string) => string | null
+  toggleCanvasPublicLink: (id: string, ownerName: string) => string | null
 }
 
 export const useNotesStore = create<NotesStore>()(
@@ -597,6 +627,39 @@ export const useNotesStore = create<NotesStore>()(
           queueWrite(['users', uid, 'canvases', canvasId], updatedCanvas, 0)
         }
         return note.id
+      },
+
+      // ── Public sharing (Stage 1) ─────────────────────────────────────────
+      // Immediate writes always — this is a security-relevant toggle, never
+      // debounced, so "off" takes effect in Firestore right away.
+      toggleNotePublicLink: (id, ownerName) => {
+        const note = get().notes.find(n => n.id === id)
+        if (!note) return null
+        const shareId = note.shareId || generateShareId()
+        const nowPublic = !note.isPublic
+        const updated = {
+          ...note, shareId, isPublic: nowPublic, updatedAt: Date.now(),
+          sharedByName: nowPublic ? ownerName : note.sharedByName,
+        }
+        set(s => ({ notes: s.notes.map(n => n.id === id ? updated : n) }))
+        const uid = get()._uid
+        if (uid) queueWrite(['users', uid, 'notes', id], updated, 0)
+        return nowPublic ? shareId : null
+      },
+
+      toggleCanvasPublicLink: (id, ownerName) => {
+        const canvas = get().canvases.find(c => c.id === id)
+        if (!canvas) return null
+        const shareId = canvas.shareId || generateShareId()
+        const nowPublic = !canvas.isPublic
+        const updated = {
+          ...canvas, shareId, isPublic: nowPublic, updatedAt: Date.now(),
+          sharedByName: nowPublic ? ownerName : canvas.sharedByName,
+        }
+        set(s => ({ canvases: s.canvases.map(c => c.id === id ? updated : c) }))
+        const uid = get()._uid
+        if (uid) queueWrite(['users', uid, 'canvases', id], updated, 0)
+        return nowPublic ? shareId : null
       },
 
       setActiveCanvas: (id) => {

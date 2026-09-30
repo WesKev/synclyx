@@ -34,7 +34,11 @@ service cloud.firestore {
 
       // ── notes/{noteId} ──────────────────────────────────────────────────
       match /notes/{noteId} {
-        allow read, delete: if isOwner();
+        // A note flagged isPublic can be read by ANYONE, signed in or not —
+        // this is what makes Stage 1 public share links work. Writing and
+        // deleting stay owner-only regardless of isPublic.
+        allow read: if isOwner() || resource.data.isPublic == true;
+        allow delete: if isOwner();
         allow create, update: if isOwner()
           && request.resource.data.id is string
           && request.resource.data.title is string
@@ -63,7 +67,9 @@ service cloud.firestore {
 
       // ── canvases/{canvasId} ──────────────────────────────────────────────
       match /canvases/{canvasId} {
-        allow read, delete: if isOwner();
+        // Same public-link model as notes above.
+        allow read: if isOwner() || resource.data.isPublic == true;
+        allow delete: if isOwner();
         allow create, update: if isOwner()
           && request.resource.data.id is string
           && request.resource.data.name is string
