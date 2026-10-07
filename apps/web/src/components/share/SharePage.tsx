@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { collectionGroup, query, where, limit, getDocs } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { setShareMeta, resetShareMeta } from '../../lib/setShareMeta'
+import { safeHref, safeSrc } from '../../utils/safeUrl'
 import type { Note, SyncVerseCanvas, Block, ChecklistItem } from '../../store/notesStore'
 import './SharePage.css'
 
@@ -195,23 +196,23 @@ function ReadOnlyBlock({ block }: { block: Block }) {
       )
     }
     case 'image':
-      return block.meta?.url ? <img className="share-block-image" src={block.meta.url} alt="" /> : null
+      return safeSrc(block.meta?.url) ? <img className="share-block-image" src={safeSrc(block.meta?.url)} alt="" /> : null
     case 'video':
-      return block.meta?.url ? <video className="share-block-video" src={block.meta.url} controls /> : null
+      return safeSrc(block.meta?.url) ? <video className="share-block-video" src={safeSrc(block.meta?.url)} controls /> : null
     case 'audio':
-      return block.meta?.url ? <audio className="share-block-audio" src={block.meta.url} controls /> : null
+      return safeSrc(block.meta?.url) ? <audio className="share-block-audio" src={safeSrc(block.meta?.url)} controls /> : null
     case 'link':
-      return block.meta?.url ? (
-        <a className="share-block-link" href={block.meta.url} target="_blank" rel="noopener noreferrer">
-          🔗 {block.meta.url}
+      return safeHref(block.meta?.url) ? (
+        <a className="share-block-link" href={safeHref(block.meta?.url)} target="_blank" rel="noopener noreferrer">
+          🔗 {block.meta?.url}
         </a>
-      ) : null
+      ) : (block.meta?.url ? <span className="share-block-link">🔗 {block.meta.url}</span> : null)
     case 'file':
-      return block.meta?.url ? (
-        <a className="share-block-file" href={block.meta.url} target="_blank" rel="noopener noreferrer">
-          📎 {block.meta.name || 'Download file'}
+      return safeHref(block.meta?.url) ? (
+        <a className="share-block-file" href={safeHref(block.meta?.url)} target="_blank" rel="noopener noreferrer">
+          📎 {block.meta?.name || 'Download file'}
         </a>
-      ) : null
+      ) : (block.meta?.url ? <span className="share-block-file">📎 {block.meta.name || 'File'}</span> : null)
     default:
       return null
   }

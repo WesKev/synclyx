@@ -3,6 +3,7 @@ import CodeBlockCM from './CodeBlock'
 import TableBlockPro from './TableBlock'
 import React, { useRef, useEffect, useState } from 'react'
 import { Block, ChecklistItem } from '../../store/notesStore'
+import { safeHref, safeSrc } from '../../utils/safeUrl'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
 
@@ -286,7 +287,7 @@ function ImageBlock({ block, onRemove }: Props) {
         <button className="block-remove-inline" onClick={onRemove}>✕</button>
       </div>
       {block.meta?.url
-        ? <img src={block.meta.url} alt={block.meta.name || 'image'} className="block-img" />
+        ? <img src={safeSrc(block.meta.url)} alt={block.meta.name || 'image'} className="block-img" />
         : <div className="block-placeholder">No image selected</div>}
     </div>
   )
@@ -300,7 +301,7 @@ function LinkBlock({ block, onRemove, onUpdateMeta }: Props) {
   const save = () => { if (!url) return; onUpdateMeta({ url, label }); setSaved(true) }
   if (saved && url) return (
     <div className="block block-link">
-      <a href={url} target="_blank" rel="noopener noreferrer" className="link-card">
+      <a href={safeHref(url)} target="_blank" rel="noopener noreferrer" className="link-card">
         <span className="link-icon">🔗</span>
         <div className="link-text">
           <span className="link-label">{label || url}</span>
@@ -348,7 +349,7 @@ function AudioBlock({ block, onRemove }: Props) {
         <span className="media-label">🎵 {block.meta?.name || 'Audio'}</span>
         <button className="block-remove-inline" onClick={onRemove}>✕</button>
       </div>
-      {block.meta?.url && <audio controls src={block.meta.url} className="media-player" />}
+      {block.meta?.url && <audio controls src={safeSrc(block.meta.url)} className="media-player" />}
     </div>
   )
 }
@@ -360,7 +361,7 @@ function VideoBlock({ block, onRemove }: Props) {
         <span className="media-label">🎬 {block.meta?.name || 'Video'}</span>
         <button className="block-remove-inline" onClick={onRemove}>✕</button>
       </div>
-      {block.meta?.url && <video controls src={block.meta.url} className="media-player" />}
+      {block.meta?.url && <video controls src={safeSrc(block.meta.url)} className="media-player" />}
     </div>
   )
 }
@@ -374,7 +375,7 @@ function FileBlock({ block, onRemove }: Props) {
         <span className="file-name">{block.meta?.name || 'File'}</span>
         {size && <span className="file-size">{size}</span>}
       </div>
-      {block.meta?.url && <a href={block.meta.url} download={block.meta.name} className="file-download">↓ Download</a>}
+      {block.meta?.url && <a href={safeHref(block.meta.url)} download={block.meta.name} className="file-download">↓ Download</a>}
       <button className="block-remove-inline" onClick={onRemove}>✕</button>
     </div>
   )

@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
+  sendPasswordResetEmail,
   updateProfile,
   type User,
 } from 'firebase/auth'
@@ -47,6 +48,7 @@ interface AuthState {
   signUp: (email: string, password: string, displayName: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
+  resetPassword: (email: string) => Promise<void>
   signOut: () => Promise<void>
   clearError: () => void
   initAuthListener: () => () => void
@@ -100,6 +102,21 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  // Always resolves the same way whether or not the email has an account, so
+  // this can't be used to find out who is registered. Only genuinely useful
+  // errors (malformed email, rate limit, network) are surfaced.
+  resetPassword: async (email) => {
+    set({ error: null })
+    try {
+      await sendPasswordResetEmail(auth, email.trim())
+    } catch (err) {
+      const code = (err as { code?: string })?.code ?? ''
+      if (code === 'auth/user-not-found') return
+      set({ error: mapAuthError(err) })
+      throw err
+    }
+  },
+
   signOut: async () => {
     await firebaseSignOut(auth)
     set({ user: null })
@@ -111,7 +128,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 function mapAuthError(err: unknown): string {
   const code = (err as { code?: string })?.code ?? ''
   switch (code) {
-    case 'auth/email-already-in-use': return 'That email is already registered — try signing in instead.'
+    case 'auth/email-already-in-use': return "We couldn't create an account with those details. If you already have one, sign in or reset your password."
     case 'auth/invalid-email': return 'That email address looks invalid.'
     case 'auth/weak-password': return 'Password must be at least 6 characters.'
     case 'auth/user-not-found':

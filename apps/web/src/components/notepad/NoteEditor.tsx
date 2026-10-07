@@ -221,7 +221,13 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>, blockId: string) => {
     const value = e.target.value
-    const cursor = e.target.selectionStart ?? value.length
+    // Text blocks call this with a fake event ({ target: { value } }), not a real DOM
+    // event — so e.target has no selectionStart / getBoundingClientRect. Fall back to
+    // the real textarea (MarkdownText tags it with data-block-id).
+    const el = (e.target instanceof HTMLElement
+      ? e.target
+      : document.querySelector(`textarea[data-block-id="${CSS.escape(blockId)}"]`)) as HTMLTextAreaElement | null
+    const cursor = el?.selectionStart ?? value.length
     const textBeforeCursor = value.slice(0, cursor)
 
     const atIndex = textBeforeCursor.lastIndexOf('@')
@@ -232,12 +238,12 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
     const afterBracket = doubleBracketIndex !== -1 ? textBeforeCursor.slice(doubleBracketIndex + 2) : ''
     const bracketIsActive = doubleBracketIndex !== -1 && !afterBracket.includes('[[') && !afterBracket.includes(' ') && !afterBracket.includes('\n') && afterBracket.length < 30
 
-    if (atIsActive) {
-      const rect = e.target.getBoundingClientRect()
+    if (atIsActive && el) {
+      const rect = el.getBoundingClientRect()
       setAtMenuPos({ x: rect.left + 16, y: rect.bottom })
       setShowAtMenu(true); setShowNoteLink(false); setAtQuery(afterAt); setActiveBlockId(blockId)
-    } else if (bracketIsActive) {
-      const rect = e.target.getBoundingClientRect()
+    } else if (bracketIsActive && el) {
+      const rect = el.getBoundingClientRect()
       setNoteLinkPos({ x: rect.left + 16, y: rect.bottom })
       setShowNoteLink(true); setShowAtMenu(false); setNoteLinkQuery(afterBracket); setActiveBlockId(blockId)
     } else {

@@ -4,6 +4,7 @@ import { Block, ChecklistItem, useNotesStore } from '../../store/notesStore'
 import { uploadFile, type UploadProgress } from '../../lib/storageUpload'
 import CodeViewer from './CodeViewer'
 import { useAuthStore } from '../../store/authStore'
+import { safeHref, safeSrc } from '../../utils/safeUrl'
 
 const generateId = () => Math.random().toString(36).slice(2, 10)
 
@@ -244,13 +245,13 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
                   <span>🖼</span>
                   <span>Image can't be displayed</span>
                   <span className="sv-img-error-hint">Some sites (e.g. Pinterest) block images from loading in other apps.</span>
-                  <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
+                  <a href={safeHref(mediaUrl)} target="_blank" rel="noopener noreferrer"
                     className="sv-img-error-link" onClick={e => e.stopPropagation()}>
                     Open image directly ↗
                   </a>
                 </div>
               ) : (
-                <img src={mediaUrl} alt="img"
+                <img src={safeSrc(mediaUrl)} alt="img"
                   style={{ width: '100%', flex: 1, objectFit: 'contain', borderRadius: '0.375rem' }}
                   onError={() => setImgError(true)}
                 />
@@ -308,7 +309,7 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
       case 'link': {
         if (mediaUrlSaved && mediaUrl) return (
           <div className="sv-media-saved">
-            <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
+            <a href={safeHref(mediaUrl)} target="_blank" rel="noopener noreferrer"
               className="sv-link-card" onClick={e => e.stopPropagation()}>
               🔗 {mediaUrl}
             </a>
@@ -353,7 +354,7 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
                   </div>
                 )
               ) : (
-                <video {...ND} controls src={mediaUrl} className="nodrag nopan"
+                <video {...ND} controls src={safeSrc(mediaUrl)} className="nodrag nopan"
                   style={{ width: '100%', flex: 1, borderRadius: '0.375rem' }} />
               )}
               <button {...ND} className="nodrag nopan sv-media-edit"
@@ -399,7 +400,7 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
       case 'audio': {
         if (mediaUrlSaved && mediaUrl) return (
           <div className="sv-media-saved sv-fill-height">
-            <audio {...ND} controls src={mediaUrl} className="nodrag nopan" style={{ width: '100%' }} />
+            <audio {...ND} controls src={safeSrc(mediaUrl)} className="nodrag nopan" style={{ width: '100%' }} />
             <button {...ND} className="nodrag nopan sv-media-edit" onClick={() => setMediaUrlSaved(false)}>✎ Change URL</button>
           </div>
         )
@@ -462,7 +463,7 @@ export default function BlockNode({ id, data, selected }: NodeProps) {
           <div className="sv-placeholder">
             📎 {block.meta?.name || 'File block'}
             {block.meta?.url && (
-              <a href={block.meta.url} target="_blank" rel="noopener noreferrer"
+              <a href={safeHref(block.meta.url)} target="_blank" rel="noopener noreferrer"
                 className="sv-file-link" onClick={e => e.stopPropagation()}>Download</a>
             )}
           </div>

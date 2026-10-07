@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Note } from '../../store/notesStore'
+import { escapeHtml, safeHref, safeSrc } from '../../utils/safeUrl'
 
 interface Props {
   note: Note
@@ -70,12 +71,12 @@ export default function ExportModal({ note, onClose }: Props) {
       table { border-collapse: collapse; width: 100%; }
       td, th { border: 1px solid #ccc; padding: 0.5rem 0.75rem; }
     </style></head><body>
-    <h1>${note.title}</h1>
+    <h1>${escapeHtml(note.title)}</h1>
     ${note.blocks.map(b => {
-      if (b.type === 'text') return `<p>${b.content.replace(/\n/g, '<br>')}</p>`
-      if (b.type === 'code') return `<pre><code>${b.meta?.content || b.content}</code></pre>`
-      if (b.type === 'link') return `<p><a href="${b.meta?.url}">${b.meta?.label || b.meta?.url}</a></p>`
-      if (b.type === 'image') return `<img src="${b.meta?.url}" style="max-width:100%">`
+      if (b.type === 'text') return `<p>${escapeHtml(b.content).replace(/\n/g, '<br>')}</p>`
+      if (b.type === 'code') return `<pre><code>${escapeHtml(b.meta?.content || b.content)}</code></pre>`
+      if (b.type === 'link') return `<p><a href="${escapeHtml(safeHref(b.meta?.url) || '')}">${escapeHtml(b.meta?.label || b.meta?.url || '')}</a></p>`
+      if (b.type === 'image') return `<img src="${escapeHtml(safeSrc(b.meta?.url) || '')}" style="max-width:100%">`
       return `<p><em>[${b.type}]</em></p>`
     }).join('')}
     </body></html>`

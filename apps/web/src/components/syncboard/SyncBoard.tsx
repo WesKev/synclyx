@@ -5,6 +5,7 @@ import { useThemeStore } from '../../store/themeStore'
 import ConfirmDialog from './ConfirmDialog'
 import SyncBoardTrash from './SyncBoardTrash'
 import './SyncBoard.css'
+import { safeHref } from '../../utils/safeUrl'
 
 export default function SyncBoard() {
   const { items, trash, searchQuery, addItem, updateItem, moveToTrash, deleteItems, togglePin, clearUnpinned, setSearchQuery } = useSyncBoardStore()
@@ -191,7 +192,7 @@ function SyncBoardCard({ item, copied, editing, editContent, editLabel, selectMo
       ) : (
         <>
           <div className="sb-card-content">
-            {item.type === 'link' ? <a href={item.content} target="_blank" rel="noopener noreferrer" className="sb-link">{item.content}</a>
+            {item.type === 'link' ? <a href={safeHref(item.content)} target="_blank" rel="noopener noreferrer" className="sb-link">{item.content}</a>
               : item.type === 'code' ? <pre className="sb-code"><code>{item.content}</code></pre>
               : <p className="sb-text">{item.content}</p>}
           </div>
