@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, StatusBar } from 'react-native'
-import { ShareIntentProvider, useShareIntentContext } from 'expo-share-intent'
+import { useShareIntent } from 'expo-share-intent'
 import { onAuthStateChanged } from 'firebase/auth'
 import * as Device from 'expo-device'
 import { auth } from './src/firebaseConfig'
@@ -13,7 +13,7 @@ const deviceName = `📱 ${Device.modelName || 'Android device'}`
 
 function AppInner() {
   const [user, setUser] = useState(undefined) // undefined = still checking, null = signed out
-  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext()
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent()
   const [confirming, setConfirming] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -85,9 +85,5 @@ function AppInner() {
 }
 
 export default function App() {
-  return (
-    <ShareIntentProvider>
-      <AppInner />
-    </ShareIntentProvider>
-  )
+  return <AppInner />
 }

@@ -42,16 +42,17 @@ export async function pushClip(uid, content, deviceName) {
 }
 
 /**
- * Reads the user's plan from users/{uid}/meta/settings — the same document
- * notesStore.ts already writes customTags to. No payment system exists yet
- * (that's Phase 4), so this always resolves to 'free' today. It's wired up
- * now so that whenever Phase 4 ships and starts writing a real `plan` value
- * to this same document, the foreground-service Pro gate below starts
- * working correctly with zero changes needed here.
+ * Reads the user's plan from the profile document users/{uid} — the same
+ * document the web app creates at sign-up with plan: 'free'. (An earlier
+ * version of this file looked in users/{uid}/meta/settings, which nothing
+ * ever writes a plan to.) Firestore Security Rules stop the client from
+ * changing `plan`, so Phase 4's payment webhook is the only thing that can
+ * ever flip it to 'basic'/'pro' — and when it does, the Pro toggle on the
+ * watching screen unlocks with no code change here.
  */
 export async function getUserPlan(uid) {
   try {
-    const snap = await getDoc(doc(db, 'users', uid, 'meta', 'settings'))
+    const snap = await getDoc(doc(db, 'users', uid))
     return snap.exists() && snap.data().plan ? snap.data().plan : 'free'
   } catch {
     return 'free'

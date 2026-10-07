@@ -8,8 +8,37 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth'
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../lib/firebase'
+
+/**
+ * Creates users/{uid} (the profile document) the FIRST time only.
+ *
+ * Two things this fixes versus the old inline setDoc calls:
+ *  1. It never throws. By the time this runs, Firebase Auth has already
+ *     signed the person in successfully — a failed profile write must not be
+ *     reported to them as "Something went wrong" (that's exactly what you saw
+ *     when the old rules blocked this write: signed in AND shown an error).
+ *  2. Google sign-in used to re-write the doc on EVERY login with
+ *     merge:true, resetting createdAt and plan each time. A Pro user would
+ *     have been reset to 'free' on their next Google login.
+ */
+async function ensureProfile(user: User, displayName: string | null) {
+  try {
+    const ref = doc(db, 'users', user.uid)
+    const snap = await getDoc(ref)
+    if (snap.exists()) return
+    await setDoc(ref, {
+      uid: user.uid,
+      email: user.email,
+      displayName,
+      createdAt: serverTimestamp(),
+      plan: 'free',
+    })
+  } catch (err) {
+    console.error('[auth] Profile document not created (sign-in itself succeeded):', err)
+  }
+}
 
 interface AuthState {
   user: User | null
@@ -40,13 +69,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password)
       await updateProfile(cred.user, { displayName })
-      await setDoc(doc(db, 'users', cred.user.uid), {
-        uid: cred.user.uid,
-        email: cred.user.email,
-        displayName,
-        createdAt: serverTimestamp(),
-        plan: 'free',
-      })
+      await ensureProfile(cred.user, displayName)
       set({ user: cred.user })
     } catch (err) {
       set({ error: mapAuthError(err) })
@@ -69,17 +92,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ error: null })
     try {
       const cred = await signInWithPopup(auth, googleProvider)
-      await setDoc(
-        doc(db, 'users', cred.user.uid),
-        {
-          uid: cred.user.uid,
-          email: cred.user.email,
-          displayName: cred.user.displayName,
-          createdAt: serverTimestamp(),
-          plan: 'free',
-        },
-        { merge: true }
-      )
+      await ensureProfile(cred.user, cred.user.displayName)
       set({ user: cred.user })
     } catch (err) {
       set({ error: mapAuthError(err) })

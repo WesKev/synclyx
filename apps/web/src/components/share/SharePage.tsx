@@ -9,6 +9,7 @@ import './SharePage.css'
 type LoadState =
   | { status: 'loading' }
   | { status: 'not-found' }
+  | { status: 'error' }
   | { status: 'note'; note: Note }
   | { status: 'canvas'; canvas: SyncVerseCanvas }
 
@@ -57,7 +58,14 @@ export default function SharePage() {
       setState({ status: 'not-found' })
     }
 
-    load().catch(() => { if (!cancelled) setState({ status: 'not-found' }) })
+    load().catch((err) => {
+      // A genuinely missing/disabled link returns an empty result (handled
+      // above) — reaching here means the request itself FAILED (permissions,
+      // missing index, network). Previously this was swallowed and shown as
+      // "link isn't available", which hid a Security Rules problem for hours.
+      console.error('[SharePage] Failed to load shared item:', err)
+      if (!cancelled) setState({ status: 'error' })
+    })
     return () => { cancelled = true }
   }, [shareId])
 
@@ -98,6 +106,16 @@ export default function SharePage() {
             <p>This link isn't available</p>
             <span className="share-page-status-hint">
               It may have been turned off, or never existed.
+            </span>
+          </div>
+        )}
+
+        {state.status === 'error' && (
+          <div className="share-page-status">
+            <span className="share-page-status-icon">⚠️</span>
+            <p>Couldn't load this link right now</p>
+            <span className="share-page-status-hint">
+              Check your connection and try again in a moment.
             </span>
           </div>
         )}
