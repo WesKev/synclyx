@@ -1,0 +1,18 @@
+{
+  "name": "synclyx-upload-signer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tiny Cloudflare Worker: checks a Synclyx (Firebase) login, then signs a Cloudinary upload. The Cloudinary API secret lives ONLY here.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "jose": "^6.2.12"
+  },
+  "devDependencies": {
+    "wrangler": "^4.148.0"
+  }
+}

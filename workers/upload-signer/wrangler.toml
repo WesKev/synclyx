@@ -1,0 +1,15 @@
+name = "synclyx-upload-signer"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+# Public settings (safe to commit — none of these are secrets).
+# Fill the two REPLACE_ME values from: Cloudinary Console -> Settings -> API Keys.
+[vars]
+CLOUDINARY_CLOUD_NAME = "aziqifhp"
+CLOUDINARY_API_KEY    = "581111478123681"
+FIREBASE_PROJECT_ID   = "synclyx-app"
+# Websites allowed to call this Worker from a browser (comma-separated, no trailing slash).
+# Add http://localhost:5173 here only while testing locally, then remove it.
+ALLOWED_ORIGINS = "https://synclyx-app.web.app,https://synclyx-app.firebaseapp.com"
+
+# The SECRET is NOT here. Set it once with:   npx wrangler secret put CLOUDINARY_API_SECRET
