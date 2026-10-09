@@ -94,6 +94,8 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
   const { status: syncStatus, markSaved } = useSyncStatus(note?.updatedAt, 800)
 
   useEffect(() => {
+    // A lock must not survive switching notes: unlocking note A must never leave B open.
+    setUnlocked(false)
     if (note) { titleRef.current?.focus(); setShowAtMenu(false); setFormatToolbar(null) }
   }, [activeNoteId])
 
@@ -553,6 +555,7 @@ export default function NoteEditor({ onOpenSyncVerse }: { onOpenSyncVerse?: () =
           title={note.title}
           isPublic={!!note.isPublic}
           shareId={note.shareId}
+          locked={!!lockedItems[note.id]}
           onToggle={() => toggleNotePublicLink(note.id, user?.displayName || user?.email?.split('@')[0] || 'a Synclyx user')}
           onClose={() => setShowShareDialog(false)}
         />

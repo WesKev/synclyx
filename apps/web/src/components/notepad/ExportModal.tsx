@@ -75,7 +75,7 @@ export default function ExportModal({ note, onClose }: Props) {
     ${note.blocks.map(b => {
       if (b.type === 'text') return `<p>${escapeHtml(b.content).replace(/\n/g, '<br>')}</p>`
       if (b.type === 'code') return `<pre><code>${escapeHtml(b.meta?.content || b.content)}</code></pre>`
-      if (b.type === 'link') return `<p><a href="${escapeHtml(safeHref(b.meta?.url) || '')}">${escapeHtml(b.meta?.label || b.meta?.url || '')}</a></p>`
+      if (b.type === 'link') return (() => { const h = safeHref(b.meta?.url); const t = escapeHtml(b.meta?.label || b.meta?.url || ''); return h ? `<p><a href="${escapeHtml(h)}">${t}</a></p>` : `<p>${t}</p>` })()
       if (b.type === 'image') return `<img src="${escapeHtml(safeSrc(b.meta?.url) || '')}" style="max-width:100%">`
       return `<p><em>[${b.type}]</em></p>`
     }).join('')}

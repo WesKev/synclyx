@@ -7,11 +7,14 @@ interface Props {
   title: string              // note/canvas title, shown in the dialog
   isPublic: boolean
   shareId?: string
+  locked?: boolean           // item has a lock on this device
   onToggle: () => void       // calls toggleNotePublicLink / toggleCanvasPublicLink
   onClose: () => void
 }
 
-export default function ShareDialog({ itemLabel, title, isPublic, shareId, onToggle, onClose }: Props) {
+export default function ShareDialog({ itemLabel, title, isPublic, shareId, locked = false, onToggle, onClose }: Props) {
+  // A public link shows the WHOLE item to anyone, ignoring the lock. So a locked item can't be newly shared.
+  const blocked = locked && !isPublic
   const [copied, setCopied] = useState(false)
 
   const url = shareId ? `${window.location.origin}/share/${shareId}` : ''
@@ -39,7 +42,9 @@ export default function ShareDialog({ itemLabel, title, isPublic, shareId, onTog
             </div>
             <button
               className={`share-switch ${isPublic ? 'on' : ''}`}
-              onClick={onToggle}
+              onClick={blocked ? undefined : onToggle}
+              disabled={blocked}
+              style={blocked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
               aria-label="Toggle public link"
             >
               <span className="share-switch-knob" />
@@ -55,6 +60,12 @@ export default function ShareDialog({ itemLabel, title, isPublic, shareId, onTog
             </div>
           )}
 
+          {locked && (
+            <p className="share-hint" style={{ color: '#ffb454' }}>
+              🔒 This {itemLabel} is locked on this device. A public link shows everything inside it to anyone, ignoring the lock.
+              {blocked ? ` Remove the lock first if you really want to share it.` : ` Turn the link off if that's not what you want.`}
+            </p>
+          )}
           <p className="share-hint">
             {isPublic
               ? `Viewers see a read-only copy of this ${itemLabel} — they can't edit it.`

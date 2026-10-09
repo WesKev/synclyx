@@ -6,6 +6,7 @@ import {
   listenToNotes, listenToNotebooks, listenToCanvases, listenToTrash,
 } from '../lib/firestoreSync'
 import { queueWrite, queueDelete, flushAll, isPending } from '../lib/syncEngine'
+import { hashLockPassword, verifyLockPassword, isLegacyLock } from '../utils/lockCrypto'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type BlockType = 'text'|'code'|'image'|'link'|'video'|'audio'|'file'|'table'|'checklist'|'heading'|'list'
@@ -158,9 +159,9 @@ interface NotesStore {
   restoreFromTrash: (id: string) => void
   permanentlyDelete: (id: string) => void
   emptyTrash: () => void
-  lockItem: (id: string, password: string) => void
+  lockItem: (id: string, password: string) => Promise<void>
   unlockItem: (id: string) => void
-  verifyLock: (id: string, password: string) => boolean
+  verifyLock: (id: string, password: string) => Promise<boolean>
   addNotebook: (name: string) => void
   updateNotebook: (id: string, updates: Partial<Notebook>) => void
   deleteNotebook: (id: string) => void
@@ -427,15 +428,21 @@ export const useNotesStore = create<NotesStore>()(
         if (uid) ids.forEach(id => queueDelete(['users', uid, 'trash', id]))
       },
 
-      // ── Lock (local only — never synced, passwords stay on-device) ────────
-      lockItem: (id, password) => {
-        const hash = btoa(password + id + 'synclyx_salt')
+      // ── Lock (local only — never synced; hides an item on THIS device, not encryption) ──
+      lockItem: async (id, password) => {
+        const hash = await hashLockPassword(password)
         set(s => ({ lockedItems: { ...s.lockedItems, [id]: hash } }))
       },
       unlockItem: (id) => set(s => { const { [id]: _, ...rest } = s.lockedItems; return { lockedItems: rest } }),
-      verifyLock: (id, password) => {
+      verifyLock: async (id, password) => {
         const stored = get().lockedItems[id]; if (!stored) return true
-        return stored === btoa(password + id + 'synclyx_salt')
+        const ok = await verifyLockPassword(stored, password, id)
+        // Old base64 locks quietly upgrade to PBKDF2 the first time they're unlocked.
+        if (ok && isLegacyLock(stored)) {
+          const upgraded = await hashLockPassword(password)
+          set(s => ({ lockedItems: { ...s.lockedItems, [id]: upgraded } }))
+        }
+        return ok
       },
 
       // ── Notebooks ──────────────────────────────────────────────────────────

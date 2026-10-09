@@ -36,7 +36,8 @@ export function renderMarkdown(text: string): string {
   html = html.replace(/(?<![_])_([^_]+)_(?![_])/g, '<em>$1</em>')
   html = html.replace(/~~([^~]+)~~/g, '<s>$1</s>')
   // [[Note links]]
-  html = html.replace(/\[\[([^\]]+)\]\]/g, '<span class="md-note-link">📝 $1</span>')
+  // (text is already HTML-escaped, quotes included, so $1 is safe inside the attribute too)
+  html = html.replace(/\[\[([^\]]+)\]\]/g, '<span class="md-note-link" data-note-title="$1">📝 $1</span>')
   html = html.replace(/\n/g, '<br>')
   // Put the vetted links back
   html = html.replace(/\u0000L(\d+)\u0000/g, (_m, i: string) => links[Number(i)] ?? '')
@@ -44,5 +45,5 @@ export function renderMarkdown(text: string): string {
 }
 
 export function hasMarkdown(text: string): boolean {
-  return /\*\*|__|\*[^*]|_[^_]|~~|`|\[.*\]\(.*\)/.test(text)
+  return /\*\*|__|\*[^*]|_[^_]|~~|`|\[.*\]\(.*\)|\[\[[^\]]+\]\]/.test(text)
 }

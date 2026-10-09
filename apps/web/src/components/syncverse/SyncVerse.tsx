@@ -17,6 +17,8 @@ import SyncIndicator from '../shared/SyncIndicator'
 import { useSyncStatus } from '../../hooks/useSyncStatus'
 import ShareDialog from '../share/ShareDialog'
 import { useAuthStore } from '../../store/authStore'
+import { useSessionLockStore } from '../../store/sessionLockStore'
+import { UnlockPrompt } from '../shared/PasswordLock'
 
 const nodeTypes = { block: BlockNode, sticky: StickyNode, note: NoteCardNode }
 const generateId = () => Math.random().toString(36).slice(2, 10)
@@ -119,7 +121,7 @@ function SyncVerseHeader({ canvas, onRename, syncStatus, onManualSave }: {
   const [val, setVal] = React.useState(canvas.name)
   const [showShareDialog, setShowShareDialog] = React.useState(false)
   const { user } = useAuthStore()
-  const { toggleCanvasPublicLink } = useNotesStore()
+  const { toggleCanvasPublicLink, lockedItems = {} } = useNotesStore()
 
   return (
     <div className="syncverse-header">
@@ -150,6 +152,7 @@ function SyncVerseHeader({ canvas, onRename, syncStatus, onManualSave }: {
           title={canvas.name}
           isPublic={!!canvas.isPublic}
           shareId={canvas.shareId}
+          locked={!!lockedItems[canvas.id]}
           onToggle={() => toggleCanvasPublicLink(canvas.id, user?.displayName || user?.email?.split('@')[0] || 'a Synclyx user')}
           onClose={() => setShowShareDialog(false)}
         />
@@ -380,5 +383,18 @@ function SyncVerseInner({ canvas }: Props) {
 }
 
 export default function SyncVerse({ canvas }: Props) {
+  // Lock gate. Without this, a locked canvas opened anyway after a refresh (the
+  // open canvas id is remembered) or if it was already open when you locked it.
+  const isLockedItem = useNotesStore(s => !!s.lockedItems?.[canvas.id])
+  const isUnlocked = useSessionLockStore(s => !!s.unlocked[canvas.id])
+  const markUnlocked = useSessionLockStore(s => s.markUnlocked)
+  const setActiveCanvas = useNotesStore(s => s.setActiveCanvas)
+  if (isLockedItem && !isUnlocked) {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <UnlockPrompt itemId={canvas.id} itemTitle={canvas.name} onSuccess={() => markUnlocked(canvas.id)} onCancel={() => setActiveCanvas(null)} />
+      </div>
+    )
+  }
   return <SyncVerseInner key={canvas.id} canvas={canvas} />
 }

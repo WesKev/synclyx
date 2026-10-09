@@ -32,7 +32,7 @@ export default function MarkdownText({
 }: Props) {
   const [focused, setFocused] = useState(false)
   const ref = useRef<HTMLTextAreaElement>(null)
-  const { searchQuery = '' } = useNotesStore()
+  const { searchQuery = '', notes, activeNoteId, setActiveNote } = useNotesStore()
 
   useEffect(() => {
     if (ref.current) {
@@ -47,7 +47,16 @@ export default function MarkdownText({
     return (
       <div
         className={`md-render ${className}`}
-        onClick={() => {
+        onClick={(e) => {
+          // [[Note title]] pills open that note instead of switching to edit mode.
+          const pill = (e.target as HTMLElement).closest?.('.md-note-link') as HTMLElement | null
+          if (pill) {
+            const title = (pill.dataset.noteTitle || '').trim().toLowerCase()
+            const linkedIds = notes.find(n => n.id === activeNoteId)?.linkedNotes ?? []
+            const matches = notes.filter(n => (n.title || '').trim().toLowerCase() === title)
+            const target = matches.find(n => linkedIds.includes(n.id)) ?? matches[0]
+            if (target) { e.stopPropagation(); setActiveNote(target.id); return }
+          }
           setFocused(true)
           setTimeout(() => ref.current?.focus(), 10)
         }}

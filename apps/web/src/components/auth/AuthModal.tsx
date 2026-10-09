@@ -99,7 +99,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }: A
               Password
               <span style={{ position: 'relative', display: 'block' }}>
                 <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••" minLength={6} required style={{ paddingRight: 44 }}
+                  placeholder="••••••••" minLength={6} required style={{ paddingRight: 44, width: '100%', boxSizing: 'border-box' }}
                   autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
                 <button type="button" onClick={() => setShowPw(v => !v)}
                   aria-label={showPw ? 'Hide password' : 'Show password'} aria-pressed={showPw}
@@ -112,7 +112,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }: A
             </label>
           )}
           {mode === 'reset' && resetSent && (
-            <div className="auth-error" style={{ background: 'rgba(60,160,90,0.15)', borderColor: 'rgba(60,160,90,0.5)' }}>
+            <div className="auth-error" style={{ background: 'rgba(60,160,90,0.15)', borderColor: 'rgba(60,160,90,0.5)', color: '#8be9a8' }}>
               If that email has an account, a reset link is on its way. Check your inbox and spam folder.
             </div>
           )}

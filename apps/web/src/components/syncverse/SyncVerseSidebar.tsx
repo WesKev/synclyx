@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNotesStore } from '../../store/notesStore'
 import { useSyncVerseThemeStore } from '../../store/syncVerseThemeStore'
 import { LockSetup, UnlockPrompt } from '../shared/PasswordLock'
 import TrashView from '../shared/TrashView'
 import CanvasVersionModal from './CanvasVersionModal'
+import { useSessionLockStore } from '../../store/sessionLockStore'
 
 export default function SyncVerseSidebar() {
   const {
@@ -17,8 +18,12 @@ export default function SyncVerseSidebar() {
 
   const [lockingCanvas, setLockingCanvas] = useState<string | null>(null)
   const [unlockingCanvas, setUnlockingCanvas] = useState<string | null>(null)
-  const [unlockedCanvases, setUnlockedCanvases] = useState<Set<string>>(new Set())
+  const unlockedMap = useSessionLockStore(s => s.unlocked)
+  const markUnlocked = useSessionLockStore(s => s.markUnlocked)
   const [showNotebooks, setShowNotebooks] = useState(false)
+  // Switching canvases (or leaving SyncVerse) relocks everything except the open canvas.
+  useEffect(() => { useSessionLockStore.getState().relockExcept(activeCanvasId ?? null) }, [activeCanvasId])
+  useEffect(() => () => useSessionLockStore.getState().relockAll(), [])
   const [newNotebookName, setNewNotebookName] = useState('')
   const [selectedNotebook, setSelectedNotebook] = useState<string | null>(null)
   const [editingNotebook, setEditingNotebook] = useState<string | null>(null)
@@ -119,7 +124,7 @@ export default function SyncVerseSidebar() {
             </div>
           )}
           {filteredCanvases.map(canvas => {
-            const isLocked = !!lockedItems[canvas.id] && !unlockedCanvases.has(canvas.id)
+            const isLocked = !!lockedItems[canvas.id] && !unlockedMap[canvas.id]
             const nb = notebooks.find(n => n.id === canvas.notebookId)
             const hasVersions = (canvas.versions || []).length > 0
             const isActive = activeCanvasId === canvas.id
@@ -185,7 +190,7 @@ export default function SyncVerseSidebar() {
         <UnlockPrompt itemId={unlockingCanvas}
           itemTitle={canvases.find(c => c.id === unlockingCanvas)?.name || 'Canvas'}
           onSuccess={() => {
-            setUnlockedCanvases(s => new Set([...s, unlockingCanvas!]))
+            markUnlocked(unlockingCanvas!)
             setActiveCanvas(unlockingCanvas)
             setUnlockingCanvas(null)
           }}
