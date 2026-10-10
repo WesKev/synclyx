@@ -1,7 +1,8 @@
 name = "synclyx-upload-signer"
 main = "src/index.js"
 compatibility_date = "2025-06-01"
-
+workers_dev = true
+preview_urls = false
 # Public settings (safe to commit — none of these are secrets).
 # Fill the two REPLACE_ME values from: Cloudinary Console -> Settings -> API Keys.
 [vars]
